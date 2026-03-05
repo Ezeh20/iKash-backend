@@ -1,10 +1,22 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { PrismaModule } from '../prisma/prisma.module'; // <- si tu prisma.module.ts está en raíz, ajusta este import
+import { UsersModule } from './modules/users/user.module';
+
+import { OfferModule } from './modules/offer/offer.module';
+import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
+import { OrderModule } from './modules/order/order.module';
+import { EscrowModule } from './modules/escrow/escrow.module';
+import { ChatMessageModule } from './modules/chat-message/chat-message.module';
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    PrismaModule,
+    UsersModule,
+    OfferModule,
+    PaymentMethodsModule,
+    OrderModule,
+    EscrowModule,
+    ChatMessageModule,
+  ],
 })
 export class AppModule {}
