@@ -7,6 +7,7 @@ import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.
 import { OrderModule } from './modules/order/order.module';
 import { EscrowModule } from './modules/escrow/escrow.module';
 import { ChatMessageModule } from './modules/chat-message/chat-message.module';
+import { StellarModule } from './modules/stellar/stellar.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ChatMessageModule } from './modules/chat-message/chat-message.module';
     OrderModule,
     EscrowModule,
     ChatMessageModule,
+    StellarModule,
   ],
 })
 export class AppModule {}
