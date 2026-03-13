@@ -8,6 +8,7 @@ import { OrderModule } from './modules/order/order.module';
 import { EscrowModule } from './modules/escrow/escrow.module';
 import { ChatMessageModule } from './modules/chat-message/chat-message.module';
 import { StellarModule } from './modules/stellar/stellar.module';
+import { KycModule } from './modules/kyc/kyc.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { StellarModule } from './modules/stellar/stellar.module';
     EscrowModule,
     ChatMessageModule,
     StellarModule,
+    KycModule,
   ],
 })
 export class AppModule {}
