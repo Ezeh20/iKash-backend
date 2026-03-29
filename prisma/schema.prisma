@@ -71,11 +71,16 @@ model Order {
 }
 
 model EscrowOnChain {
-  escrowId      String  @id @default(dbgenerated("gen_random_uuid()")) @map("escrow_id") @db.Uuid
-  orderId       String  @unique @map("order_id") @db.Uuid
-  txHashLock    String? @map("tx_hash_lock")
-  txHashRelease String? @map("tx_hash_release")
-  order         Order   @relation(fields: [orderId], references: [orderId], onDelete: Cascade, onUpdate: NoAction)
+  escrowId      String        @id @default(dbgenerated("gen_random_uuid()")) @map("escrow_id") @db.Uuid
+  orderId       String        @unique @map("order_id") @db.Uuid
+  txHashLock    String?       @map("tx_hash_lock")
+  txHashRelease String?       @map("tx_hash_release")
+  contractId    String?       @unique @map("contract_id")
+  escrowStatus  escrow_status @default(pending) @map("escrow_status")
+  amount        Decimal?      @map("amount") @db.Decimal(20, 7)
+  buyerAddress  String?       @map("buyer_address")
+  sellerAddress String?       @map("seller_address")
+  order         Order         @relation(fields: [orderId], references: [orderId], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("escrowonchain")
 }
@@ -123,4 +128,14 @@ enum order_status {
   cancelled
   expired
   disputed
+}
+
+enum escrow_status {
+  pending
+  initialized
+  funded
+  fiat_sent
+  released
+  disputed
+  resolved
 }

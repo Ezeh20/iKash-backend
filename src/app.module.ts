@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module'; // <- si tu prisma.module.ts está en raíz, ajusta este import
 import { UsersModule } from './modules/users/user.module';
 
@@ -12,6 +13,7 @@ import { KycModule } from './modules/kyc/kyc.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     UsersModule,
     OfferModule,
