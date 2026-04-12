@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { PaginationDto } from '../../common/pagination.dto';
 import { CreateEscrowDto } from './dto/create-escrow.dto';
 import { UpdateEscrowDto } from './dto/update-escrow.dto';
+import { OpenEscrowDto } from './dto/open-escrow.dto';
 import { InitializeEscrowDto } from './dto/initialize-escrow.dto';
 import { FundEscrowDto } from './dto/fund-escrow.dto';
 import { ReleaseEscrowDto } from './dto/release-escrow.dto';
@@ -25,7 +26,112 @@ export class EscrowService {
     private readonly config: ConfigService,
   ) {}
 
-  // ─── Trustless Work Escrow Flow ────────────────────────────────────────
+  // ─── Trustless Work Escrow Flow ──────────────────────────────────────────
+
+  /**
+   * COMBINED STEP 1+2: Open escrow (initialize + prepare fund in one call)
+   *
+   * The backend deploys the escrow contract autonomously using the iKash
+   * treasury account as signer, then immediately builds the fund transaction.
+   * The frontend receives a single unsigned fund XDR and the user only signs ONCE.
+   *
+   * Flow:
+   *   1. Backend calls TW /deployer/multi-release (signer = treasury)
+   *   2. Backend signs + broadcasts the deploy tx with IKASH_DEPLOYER_SECRET
+   *   3. Stores contractId in DB, status = 'initialized'
+   *   4. Calls TW /escrow/multi-release/fund-escrow (signer = seller)
+   *   5. Returns unsigned fund XDR → user signs once → POST /escrows/sync { action: 'fund' }
+   */
+  async open(dto: OpenEscrowDto) {
+    // Guard: avoid duplicate escrows per order
+    const existing = await this.repo.findByOrder(dto.orderId);
+    if (existing?.contractId) {
+      throw new BadRequestException(
+        'An escrow contract already exists for this order',
+      );
+    }
+
+    const treasuryAddress = this.config.getOrThrow<string>('IKASH_TREASURY_ADDRESS');
+    const supportAddress  = this.config.getOrThrow<string>('IKASH_SUPPORT_ADDRESS');
+    const deployerSecret  = this.config.getOrThrow<string>('IKASH_DEPLOYER_SECRET');
+    const usdcIssuer      = this.config.getOrThrow<string>('TRUSTLESS_WORK_USDC_ISSUER');
+    const platformFee     = Number(this.config.get<string>('IKASH_PLATFORM_FEE', '1'));
+    const networkPassphrase = this.getNetworkPassphrase();
+
+    // ─ STEP 1: Build + deploy escrow (backend-signed) ───────────────────
+    const deployPayload = {
+      signer:       treasuryAddress,   // iKash treasury deploys the contract
+      engagementId: dto.orderId,
+      title:        dto.title,
+      description:  `iKash P2P escrow for order ${dto.orderId}`,
+      roles: {
+        approver:        treasuryAddress,
+        serviceProvider: dto.sellerAddress,
+        releaseSigner:   dto.sellerAddress,
+        disputeResolver: supportAddress,
+        platformAddress: treasuryAddress,
+      },
+      platformFee,
+      milestones: [
+        {
+          description: 'P2P fiat-to-crypto exchange',
+          amount:      Number(dto.amount),
+          receiver:    dto.buyerAddress,
+        },
+      ],
+      trustline: { address: usdcIssuer, symbol: 'USDC' },
+    };
+
+    const deployResult = await this.tw.initializeEscrow(deployPayload);
+
+    // Backend signs + broadcasts the deploy tx — no user signature needed
+    const broadcastResult = await this.tw.signAndBroadcast(
+      deployResult.unsignedTransaction,
+      deployerSecret,
+      networkPassphrase,
+    );
+
+    if (broadcastResult.status !== 'SUCCESS' || !broadcastResult.contractId) {
+      throw new BadRequestException({
+        error: 'EscrowDeployFailed',
+        message: broadcastResult.message ?? 'Escrow contract deployment failed',
+        details: broadcastResult,
+      });
+    }
+
+    const contractId = broadcastResult.contractId;
+    this.logger.log(`Escrow deployed: contractId=${contractId} for order ${dto.orderId}`);
+
+    // ─ Persist escrow record ────────────────────────────────────────────────
+    let escrow = existing;
+    if (!escrow) {
+      escrow = await this.repo.create({
+        orderId:       dto.orderId,
+        buyerAddress:  dto.buyerAddress,
+        sellerAddress: dto.sellerAddress,
+        amount:        dto.amount,
+        escrowStatus:  'initialized',
+      });
+    }
+    await this.repo.update(escrow!.escrowId, {
+      contractId,
+      escrowStatus: 'initialized',
+    });
+
+    // ─ STEP 2: Build fund XDR for user to sign ──────────────────────────
+    const fundResult = await this.tw.fundEscrow({
+      contractId,
+      signer: dto.sellerAddress,   // seller funds the escrow
+      amount: dto.amount,
+    });
+
+    return {
+      escrowId:            escrow!.escrowId,
+      contractId,
+      // The user signs this XDR once, then calls POST /escrows/sync { action: 'fund' }
+      unsignedFundTransaction: fundResult.unsignedTransaction,
+    };
+  }
 
   /**
    * STEP 1: Initialize escrow
@@ -67,21 +173,21 @@ export class EscrowService {
       roles: {
         approver: treasuryAddress,
         serviceProvider: dto.sellerAddress,
-        receiver: dto.buyerAddress,
         releaseSigner: dto.sellerAddress,
         disputeResolver: supportAddress,
+        platformAddress: treasuryAddress,
       },
       platformFee,
       milestones: [
         {
           description: 'P2P fiat-to-crypto exchange',
-          amount: String(dto.amount),
-          status: '',
+          amount: Number(dto.amount),
+          receiver: dto.buyerAddress,
         },
       ],
       trustline: {
         address: usdcIssuer,
-        decimals: 7,
+        symbol: 'USDC',
       },
     };
 
@@ -345,5 +451,13 @@ export class EscrowService {
           `Expected one of: [${allowed?.join(', ')}]`,
       );
     }
+  }
+
+  /** Returns the Stellar network passphrase based on the STELLAR_NETWORK env var */
+  private getNetworkPassphrase(): string {
+    const network = this.config.get<string>('STELLAR_NETWORK', 'testnet').toLowerCase();
+    return network === 'public'
+      ? 'Public Global Stellar Network ; September 2015'
+      : 'Test SDF Network ; September 2015';
   }
 }

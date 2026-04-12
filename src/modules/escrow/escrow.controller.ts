@@ -11,6 +11,7 @@ import {
 import { PaginationDto } from '../../common/pagination.dto';
 import { CreateEscrowDto } from './dto/create-escrow.dto';
 import { UpdateEscrowDto } from './dto/update-escrow.dto';
+import { OpenEscrowDto } from './dto/open-escrow.dto';
 import { InitializeEscrowDto } from './dto/initialize-escrow.dto';
 import { FundEscrowDto } from './dto/fund-escrow.dto';
 import { ReleaseEscrowDto } from './dto/release-escrow.dto';
@@ -23,7 +24,17 @@ export class EscrowController {
 
   // ─── Trustless Work Escrow Flow ──────────────────────────────────────
 
-  /** Get unsigned XDR to deploy a new escrow contract */
+  /**
+   * Combined initialize+fund: backend deploys the escrow, returns
+   * a single unsigned fund XDR for the user to sign once.
+   * Call this when an order is confirmed.
+   */
+  @Post('open')
+  open(@Body() dto: OpenEscrowDto) {
+    return this.service.open(dto);
+  }
+
+  /** Get unsigned XDR to deploy a new escrow contract (advanced / manual use) */
   @Post('initialize')
   initialize(@Body() dto: InitializeEscrowDto) {
     return this.service.initialize(dto);

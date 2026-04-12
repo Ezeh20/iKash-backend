@@ -1,6 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import * as StellarSdk from 'stellar-sdk';
 
 /**
  * TrustlessWorkService
@@ -25,7 +26,7 @@ export class TrustlessWorkService {
       timeout: 60_000,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        'x-api-key': apiKey,
       },
     });
   }
@@ -45,17 +46,13 @@ export class TrustlessWorkService {
     platformFee: number;
     milestones: Array<{
       description: string;
-      amount: string;
-      status: string;
+      amount: number;
+      receiver: string;
+      status?: string;
     }>;
-    trustline: { address: string; decimals: number };
+    trustline: { address: string; symbol: string };
   }): Promise<{ unsignedTransaction: string }> {
-    return this.post('/deployer/multi-release', {
-      ...payload,
-      roles: payload.roles,
-      milestones: payload.milestones,
-      trustline: payload.trustline,
-    });
+    return this.post('/deployer/multi-release', payload);
   }
 
   // ─── Fund ──────────────────────────────────────────────────────────────
@@ -121,6 +118,41 @@ export class TrustlessWorkService {
     escrow?: any;
   }> {
     return this.post('/helper/send-transaction', { signedXdr });
+  }
+
+  /**
+   * Sign an unsigned XDR with a backend-controlled secret key and broadcast it.
+   *
+   * Used exclusively for the escrow deploy step: iKash treasury signs the
+   * initialize transaction so the end user never has to.
+   *
+   * SECURITY: signerSecret must come from a backend env var, never from the client.
+   */
+  async signAndBroadcast(
+    unsignedXdr: string,
+    signerSecret: string,
+    networkPassphrase: string,
+  ): Promise<{
+    status: string;
+    contractId?: string;
+    message?: string;
+  }> {
+    const keypair = StellarSdk.Keypair.fromSecret(signerSecret);
+
+    // Parse the XDR envelope — Trustless Work returns a TransactionEnvelope
+    const transaction = StellarSdk.TransactionBuilder.fromXDR(
+      unsignedXdr,
+      networkPassphrase,
+    );
+
+    transaction.sign(keypair);
+    const signedXdr = transaction.toEnvelope().toXDR('base64');
+
+    this.logger.debug(
+      `Broadcasting backend-signed tx for signer ${keypair.publicKey().substring(0, 8)}…`,
+    );
+
+    return this.sendTransaction(signedXdr);
   }
 
   // ─── Query ─────────────────────────────────────────────────────────────
