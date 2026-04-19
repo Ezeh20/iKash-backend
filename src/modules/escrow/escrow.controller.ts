@@ -14,6 +14,7 @@ import { UpdateEscrowDto } from './dto/update-escrow.dto';
 import { OpenEscrowDto } from './dto/open-escrow.dto';
 import { InitializeEscrowDto } from './dto/initialize-escrow.dto';
 import { FundEscrowDto } from './dto/fund-escrow.dto';
+import { FiatSentDto } from './dto/fiat-sent.dto';
 import { ReleaseEscrowDto } from './dto/release-escrow.dto';
 import { SyncEscrowDto } from './dto/sync-escrow.dto';
 import { EscrowService } from './escrow.service';
@@ -60,8 +61,8 @@ export class EscrowController {
 
   /** Mark that the buyer has sent fiat payment */
   @Post(':id/fiat-sent')
-  markFiatSent(@Param('id') id: string) {
-    return this.service.markFiatSent(id);
+  markFiatSent(@Param('id') id: string, @Body() dto: FiatSentDto) {
+    return this.service.markFiatSent(id, dto);
   }
 
   /** Get escrow status with live on-chain data */

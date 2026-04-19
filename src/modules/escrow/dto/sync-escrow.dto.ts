@@ -3,6 +3,7 @@ import { IsEnum, IsString, IsUUID } from 'class-validator';
 export enum EscrowAction {
   INITIALIZE = 'initialize',
   FUND = 'fund',
+  FIAT_SENT = 'fiat_sent',
   RELEASE = 'release',
 }
 
