@@ -3,14 +3,111 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model AppUser {
+  userId         String          @id @default(dbgenerated("gen_random_uuid()")) @map("user_id") @db.Uuid
+  publicKey      String          @unique @map("public_key")
+  alias          String?         @map("alias")
+  kycStatus      kyc_status      @default(pending) @map("kyc_status")
+  kycUpdatedAt   DateTime?       @map("kyc_updated_at") @db.Timestamptz(6)
+  totalVolume    Decimal         @default(0) @map("total_volume") @db.Decimal(20, 7)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  currentNonce   String?         @map("current_nonce")
+  chatMessages   ChatMessage[]
+  offers         Offer[]         @relation("UserOffers")
+  buyOrders      Order[]         @relation("BuyerOrders")
+  sellOrders     Order[]         @relation("SellerOrders")
+  paymentMethods PaymentMethod[]
+
+  @@map("app_user")
+}
+
+model PaymentMethod {
+  paymentId      String  @id @default(dbgenerated("gen_random_uuid()")) @map("payment_id") @db.Uuid
+  userId         String  @map("user_id") @db.Uuid
+  bankName       String  @map("bank_name")
+  accountDetails String  @map("account_details")
+  isActive       Boolean @default(true) @map("is_active")
+  user           AppUser @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("paymentmethod")
+}
+
+model Offer {
+  offerId   String       @id @default(dbgenerated("gen_random_uuid()")) @map("offer_id") @db.Uuid
+  creatorId String       @map("creator_id") @db.Uuid
+  type      offer_type
+  assetCode String       @map("asset_code")
+  price     Decimal      @map("price") @db.Decimal(20, 7)
+  minAmount Decimal      @map("min_amount") @db.Decimal(20, 7)
+  maxAmount Decimal      @map("max_amount") @db.Decimal(20, 7)
+  status    offer_status @default(active)
+  creator   AppUser      @relation("UserOffers", fields: [creatorId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  orders    Order[]
+
+  @@map("offer")
+}
+
+model Order {
+  orderId      String         @id @default(dbgenerated("gen_random_uuid()")) @map("order_id") @db.Uuid
+  offerId      String         @map("offer_id") @db.Uuid
+  buyerId      String         @map("buyer_id") @db.Uuid
+  sellerId     String         @map("seller_id") @db.Uuid
+  assetAmount  Decimal        @map("asset_amount") @db.Decimal(20, 7)
+  fiatAmount   Decimal        @map("fiat_amount") @db.Decimal(20, 7)
+  orderStatus  order_status   @default(created) @map("order_status")
+  expiresAt    DateTime?      @map("expires_at") @db.Timestamptz(6)
+  chatMessages ChatMessage[]
+  escrow       EscrowOnChain?
+  buyer        AppUser        @relation("BuyerOrders", fields: [buyerId], references: [userId], onUpdate: NoAction)
+  offer        Offer          @relation(fields: [offerId], references: [offerId], onUpdate: NoAction)
+  seller       AppUser        @relation("SellerOrders", fields: [sellerId], references: [userId], onUpdate: NoAction)
+
+  @@map("order")
+}
+
+model EscrowOnChain {
+  escrowId      String        @id @default(dbgenerated("gen_random_uuid()")) @map("escrow_id") @db.Uuid
+  orderId       String        @unique @map("order_id") @db.Uuid
+  txHashLock    String?       @map("tx_hash_lock")
+  txHashRelease String?       @map("tx_hash_release")
+  contractId    String?       @unique @map("contract_id")
+  escrowStatus  escrow_status @default(pending) @map("escrow_status")
+  amount        Decimal?      @map("amount") @db.Decimal(20, 7)
+  buyerAddress  String?       @map("buyer_address")
+  sellerAddress String?       @map("seller_address")
+  order         Order         @relation(fields: [orderId], references: [orderId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("escrowonchain")
+}
+
+model ChatMessage {
+  messageId String   @id @default(dbgenerated("gen_random_uuid()")) @map("message_id") @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  content   String
+  timestamp DateTime @default(now()) @db.Timestamptz(6)
+  order     Order    @relation(fields: [orderId], references: [orderId], onDelete: Cascade, onUpdate: NoAction)
+  sender    AppUser  @relation(fields: [senderId], references: [userId], onUpdate: NoAction)
+
+  @@map("chatmessage")
 }
 
 enum kyc_status {
-  pending
+  not_started
+  in_progress
+  in_review
   approved
   rejected
+  expired
+  kyc_expired
+  abandoned
+  resubmitted
+  pending
 }
 
 enum offer_type {
@@ -33,102 +130,12 @@ enum order_status {
   disputed
 }
 
-model AppUser {
-  userId       String      @id @default(uuid()) @map("user_id") @db.Uuid
-  publicKey    String      @unique @map("public_key")
-  alias        String?     @map("alias")
-  kycStatus    kyc_status  @default(pending) @map("kyc_status")
-  kycUpdatedAt DateTime?   @map("kyc_updated_at") @db.Timestamptz(6)
-
-  // Cambiado: Numeric -> Decimal
-  totalVolume  Decimal     @default("0") @map("total_volume") @db.Decimal(20,7)
-
-  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  currentNonce String?     @map("current_nonce")
-
-  paymentMethods PaymentMethod[]
-  offers         Offer[] @relation("UserOffers")
-  buyOrders      Order[] @relation("BuyerOrders")
-  sellOrders     Order[] @relation("SellerOrders")
-  chatMessages   ChatMessage[]
-
-  @@map("app_user")
-}
-
-model PaymentMethod {
-  paymentId      String   @id @default(uuid()) @map("payment_id") @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  bankName       String   @map("bank_name")
-  accountDetails String   @map("account_details")
-  isActive       Boolean  @default(true) @map("is_active")
-
-  user AppUser @relation(fields: [userId], references: [userId], onDelete: Cascade)
-
-  @@map("paymentmethod")
-}
-
-model Offer {
-  offerId    String       @id @default(uuid()) @map("offer_id") @db.Uuid
-  creatorId  String       @map("creator_id") @db.Uuid
-  type       offer_type
-  assetCode  String       @map("asset_code")
-
-  // Cambiado: Numeric -> Decimal
-  price      Decimal      @map("price") @db.Decimal(20,7)
-  minAmount  Decimal      @map("min_amount") @db.Decimal(20,7)
-  maxAmount  Decimal      @map("max_amount") @db.Decimal(20,7)
-
-  status     offer_status @default(active)
-
-  creator AppUser @relation("UserOffers", fields: [creatorId], references: [userId], onDelete: Cascade)
-  orders  Order[]
-
-  @@map("offer")
-}
-
-model Order {
-  orderId     String       @id @default(uuid()) @map("order_id") @db.Uuid
-  offerId     String       @map("offer_id") @db.Uuid
-  buyerId     String       @map("buyer_id") @db.Uuid
-  sellerId    String       @map("seller_id") @db.Uuid
-
-  // Cambiado: Numeric -> Decimal
-  assetAmount Decimal      @map("asset_amount") @db.Decimal(20,7)
-  fiatAmount  Decimal      @map("fiat_amount") @db.Decimal(20,7)
-
-  orderStatus order_status @default(created) @map("order_status")
-  expiresAt   DateTime?    @map("expires_at") @db.Timestamptz(6)
-
-  offer  Offer   @relation(fields: [offerId], references: [offerId], onDelete: Restrict)
-  buyer  AppUser @relation("BuyerOrders", fields: [buyerId], references: [userId], onDelete: Restrict)
-  seller AppUser @relation("SellerOrders", fields: [sellerId], references: [userId], onDelete: Restrict)
-
-  escrow       EscrowOnChain?
-  chatMessages ChatMessage[]
-
-  @@map("order")
-}
-
-model EscrowOnChain {
-  escrowId      String  @id @default(uuid()) @map("escrow_id") @db.Uuid
-  orderId       String  @unique @map("order_id") @db.Uuid
-  txHashLock    String? @map("tx_hash_lock")
-  txHashRelease String? @map("tx_hash_release")
-
-  order Order @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
-
-  @@map("escrowonchain")
-}
-
-model ChatMessage {
-  messageId String   @id @default(uuid()) @map("message_id") @db.Uuid
-  orderId   String   @map("order_id") @db.Uuid
-  senderId  String   @map("sender_id") @db.Uuid
-  content   String
-  timestamp DateTime @default(now()) @db.Timestamptz(6)
-
-  order  Order   @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
-  sender AppUser @relation(fields: [senderId], references: [userId], onDelete: Restrict)
-
-  @@map("chatmessage")
+enum escrow_status {
+  pending
+  initialized
+  funded
+  fiat_sent
+  released
+  disputed
+  resolved
 }
