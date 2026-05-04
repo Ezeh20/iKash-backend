@@ -3,10 +3,26 @@ import { PaginationDto } from '../../common/pagination.dto';
 import { CreateUserDto } from './dto/create-users.dto';
 import { UpdateUserDto } from './dto/update-users.dto';
 import { UsersService } from './users.service';
+import { SetupAccountDto } from './dto/setup-account.dto';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly service: UsersService) {}
+
+  @Get('account')
+  getOrCreate(@Query('publicKey') publicKey: string) {
+    return this.service.getOrCreateAccount(publicKey);
+  }
+
+  @Get('available-username')
+  checkAlias(@Query('alias') alias: string) {
+    return this.service.isAliasAvailable(alias);
+  }
+
+  @Post(':id/setup')
+  setup(@Param('id') id: string, @Body() dto: SetupAccountDto) {
+    return this.service.setupAccount(id, dto);
+  }
 
   @Post()
   create(@Body() dto: CreateUserDto) {
