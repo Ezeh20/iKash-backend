@@ -1,6 +1,7 @@
 import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class UpdateUserDto {
+export class SetupAccountDto {
+  // Stage 1
   @IsOptional()
   @IsString()
   @MaxLength(80)
@@ -10,6 +11,7 @@ export class UpdateUserDto {
   @IsEmail()
   email?: string;
 
+  // Stage 2
   @IsOptional()
   @IsBoolean()
   notificationsEnabled?: boolean;
@@ -18,11 +20,16 @@ export class UpdateUserDto {
   @IsString()
   preferredCurrency?: string;
 
+  // Stage 3
   @IsOptional()
-  @IsBoolean()
-  pendingAccountInfo?: boolean;
+  @IsString()
+  bankName?: string;
 
   @IsOptional()
   @IsString()
-  kycStatus?: 'not_started' | 'in_progress' | 'in_review' | 'approved' | 'rejected' | 'expired' | 'kyc_expired' | 'abandoned' | 'resubmitted' | 'pending';
+  accountHolderName?: string;
+
+  @IsOptional()
+  @IsString()
+  accountNumber?: string;
 }
