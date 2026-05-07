@@ -9,23 +9,24 @@ datasource db {
 }
 
 model AppUser {
-  userId         String          @id @default(dbgenerated("gen_random_uuid()")) @map("user_id") @db.Uuid
-  publicKey      String          @unique @map("public_key")
-  alias          String?         @unique @map("alias")
-  email          String?         @map("email")
-  notificationsEnabled Boolean   @default(true) @map("notifications_enabled")
-  preferredCurrency    String?   @map("preferred_currency")
-  pendingAccountInfo   Boolean   @default(true) @map("pending_account_info")
-  kycStatus      kyc_status      @default(pending) @map("kyc_status")
-  kycUpdatedAt   DateTime?       @map("kyc_updated_at") @db.Timestamptz(6)
-  totalVolume    Decimal         @default(0) @map("total_volume") @db.Decimal(20, 7)
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  currentNonce   String?         @map("current_nonce")
-  chatMessages   ChatMessage[]
-  offers         Offer[]         @relation("UserOffers")
-  buyOrders      Order[]         @relation("BuyerOrders")
-  sellOrders     Order[]         @relation("SellerOrders")
-  paymentMethods PaymentMethod[]
+  userId               String           @id @default(dbgenerated("gen_random_uuid()")) @map("user_id") @db.Uuid
+  publicKey            String           @unique @map("public_key")
+  alias                String?          @unique @map("alias")
+  kycStatus            kyc_status       @default(pending) @map("kyc_status")
+  kycUpdatedAt         DateTime?        @map("kyc_updated_at") @db.Timestamptz(6)
+  totalVolume          Decimal          @default(0) @map("total_volume") @db.Decimal(20, 7)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  currentNonce         String?          @map("current_nonce")
+  email                String?          @map("email")
+  notificationsEnabled Boolean          @default(true) @map("notifications_enabled")
+  pendingAccountInfo   Boolean          @default(true) @map("pending_account_info")
+  preferredCurrency    String?          @map("preferred_currency")
+  chatMessages         ChatMessage[]
+  offers               Offer[]          @relation("UserOffers")
+  buyOrders            Order[]          @relation("BuyerOrders")
+  sellOrders           Order[]          @relation("SellerOrders")
+  payment_method       payment_method[]
+  paymentMethods       PaymentMethod[]
 
   @@map("app_user")
 }
@@ -79,10 +80,10 @@ model EscrowOnChain {
   orderId       String        @unique @map("order_id") @db.Uuid
   txHashLock    String?       @map("tx_hash_lock")
   txHashRelease String?       @map("tx_hash_release")
-  contractId    String?       @unique @map("contract_id")
-  escrowStatus  escrow_status @default(pending) @map("escrow_status")
   amount        Decimal?      @map("amount") @db.Decimal(20, 7)
   buyerAddress  String?       @map("buyer_address")
+  contractId    String?       @unique @map("contract_id")
+  escrowStatus  escrow_status @default(pending) @map("escrow_status")
   sellerAddress String?       @map("seller_address")
   order         Order         @relation(fields: [orderId], references: [orderId], onDelete: Cascade, onUpdate: NoAction)
 
@@ -101,17 +102,59 @@ model ChatMessage {
   @@map("chatmessage")
 }
 
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model payment_method {
+  payment_id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String                @db.Uuid
+  provider_id           String                @db.Uuid
+  type                  payment_provider_type
+  account_identifier    String
+  beneficiary_name      String?
+  identification_number String?
+  description           String?
+  is_active             Boolean               @default(true)
+  created_at            DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime              @default(now()) @db.Timestamptz(6)
+  payment_provider      payment_provider      @relation(fields: [provider_id], references: [provider_id], onDelete: NoAction, onUpdate: NoAction)
+  app_user              AppUser               @relation(fields: [user_id], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([is_active], map: "idx_payment_method_is_active")
+  @@index([provider_id], map: "idx_payment_method_provider_id")
+  @@index([type], map: "idx_payment_method_type")
+  @@index([user_id], map: "idx_payment_method_user_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model payment_provider {
+  provider_id    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  type           payment_provider_type
+  country_code   String?
+  is_active      Boolean               @default(true)
+  metadata       Json?
+  created_at     DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime              @default(now()) @db.Timestamptz(6)
+  payment_method payment_method[]
+
+  @@unique([name, country_code, type], map: "payment_provider_name_country_type_unique")
+  @@index([country_code], map: "idx_payment_provider_country_code")
+  @@index([is_active], map: "idx_payment_provider_is_active")
+  @@index([type], map: "idx_payment_provider_type")
+}
+
 enum kyc_status {
+  pending
+  approved
+  rejected
   not_started
   in_progress
   in_review
-  approved
-  rejected
   expired
   kyc_expired
   abandoned
   resubmitted
-  pending
 }
 
 enum offer_type {
@@ -142,4 +185,10 @@ enum escrow_status {
   released
   disputed
   resolved
+}
+
+enum payment_provider_type {
+  MOBILE
+  PLATFORM
+  BANK
 }
