@@ -10,6 +10,8 @@ import { EscrowModule } from './modules/escrow/escrow.module';
 import { ChatMessageModule } from './modules/chat-message/chat-message.module';
 import { StellarModule } from './modules/stellar/stellar.module';
 import { KycModule } from './modules/kyc/kyc.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { PaymentProvidersModule } from './modules/payment-providers/payment-providers.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { KycModule } from './modules/kyc/kyc.module';
     ChatMessageModule,
     StellarModule,
     KycModule,
+    AuthModule,
+    PaymentProvidersModule,
   ],
 })
 export class AppModule {}

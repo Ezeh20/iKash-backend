@@ -20,7 +20,7 @@ export class SetupAccountDto {
   @IsString()
   preferredCurrency?: string;
 
-  // Stage 3
+  // Stage 3 (Legacy)
   @IsOptional()
   @IsString()
   bankName?: string;
@@ -32,4 +32,25 @@ export class SetupAccountDto {
   @IsOptional()
   @IsString()
   accountNumber?: string;
+
+  // Stage 3 (New)
+  @IsOptional()
+  @IsString()
+  providerId?: string;
+
+  @IsOptional()
+  @IsString()
+  accountIdentifier?: string;
+
+  @IsOptional()
+  @IsString()
+  identificationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  beneficiaryName?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 }
