@@ -4,6 +4,8 @@ import { CreateUserDto } from './dto/create-users.dto';
 import { UpdateUserDto } from './dto/update-users.dto';
 import { UsersService } from './users.service';
 import { SetupAccountDto } from './dto/setup-account.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { UseGuards } from '@nestjs/common';
 
 @Controller('users')
 export class UsersController {
@@ -19,6 +21,7 @@ export class UsersController {
     return this.service.isAliasAvailable(alias);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post(':id/setup')
   setup(@Param('id') id: string, @Body() dto: SetupAccountDto) {
     return this.service.setupAccount(id, dto);

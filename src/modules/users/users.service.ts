@@ -5,12 +5,14 @@ import { UpdateUserDto } from './dto/update-users.dto';
 import { UsersRepository } from './users.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SetupAccountDto } from './dto/setup-account.dto';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly repo: UsersRepository,
     private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
   ) {}
 
   async getOrCreateAccount(publicKey: string) {
@@ -23,15 +25,19 @@ export class UsersService {
   }
 
   async setupAccount(userId: string, dto: SetupAccountDto) {
-    const { bankName, accountHolderName, accountNumber, ...profileData } = dto;
+    const { 
+      bankName, accountHolderName, accountNumber, 
+      providerId, accountIdentifier, identificationNumber, beneficiaryName, description,
+      ...profileData 
+    } = dto;
     
     // Update user profile + set pendingAccountInfo = false
-    const updated = await this.repo.update(userId, { 
+    const updatedUser = await this.repo.update(userId, { 
       ...profileData, 
       pendingAccountInfo: false 
     });
 
-    // Create PaymentMethod if bank data provided
+    // 1. Create Legacy PaymentMethod if data provided
     if (bankName || accountNumber) {
       await this.prisma.paymentMethod.create({
         data: {
@@ -42,7 +48,36 @@ export class UsersService {
       });
     }
 
-    return updated;
+    // 2. Create New payment_method (snake_case) if providerId provided
+    if (providerId && accountIdentifier) {
+      const provider = await this.prisma.payment_provider.findUnique({
+        where: { provider_id: providerId }
+      });
+
+      if (!provider) {
+        throw new NotFoundException('Payment provider not found');
+      }
+
+      await this.prisma.payment_method.create({
+        data: {
+          user_id: userId,
+          provider_id: providerId,
+          type: provider.type,
+          account_identifier: accountIdentifier,
+          identification_number: identificationNumber,
+          beneficiary_name: beneficiaryName,
+          description: description,
+        },
+      });
+    }
+
+    // Generate new JWT
+    const { access_token } = await this.authService.finalizeSetup(userId, updatedUser.publicKey);
+
+    return {
+      user: updatedUser,
+      access_token,
+    };
   }
 
   async create(dto: CreateUserDto) {

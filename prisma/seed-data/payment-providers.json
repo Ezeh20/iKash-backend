@@ -1,0 +1,71 @@
+[
+  {
+    "name": "Pago Movil",
+    "type": "MOBILE",
+    "country_code": "VE",
+    "metadata": {
+      "ui_requirements": [
+        {
+          "db_field": "account_identifier",
+          "label": "Phone Number",
+          "type": "tel",
+          "placeholder": "04121234567",
+          "required": true
+        },
+        {
+          "db_field": "identification_number",
+          "label": "ID Number",
+          "type": "text",
+          "placeholder": "V-12345678",
+          "required": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "PayPal",
+    "type": "PLATFORM",
+    "country_code": "",
+    "metadata": {
+      "ui_requirements": [
+        {
+          "db_field": "account_identifier",
+          "label": "PayPal Email",
+          "type": "email",
+          "placeholder": "user@example.com",
+          "required": true
+        },
+        {
+          "db_field": "beneficiary_name",
+          "label": "Full Name",
+          "type": "text",
+          "placeholder": "John Doe",
+          "required": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "Bank of America",
+    "type": "BANK",
+    "country_code": "US",
+    "metadata": {
+      "ui_requirements": [
+        {
+          "db_field": "account_identifier",
+          "label": "Account Number",
+          "type": "text",
+          "placeholder": "Account Number",
+          "required": true
+        },
+        {
+          "db_field": "beneficiary_name",
+          "label": "Account Holder",
+          "type": "text",
+          "placeholder": "John Doe",
+          "required": true
+        }
+      ]
+    }
+  }
+]
