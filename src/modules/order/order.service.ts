@@ -19,6 +19,9 @@ export class OrderService {
     if (q.offerId) where.offerId = q.offerId;
     if (q.buyerId) where.buyerId = q.buyerId;
     if (q.sellerId) where.sellerId = q.sellerId;
+    if (q.userId) {
+      where.OR = [{ buyerId: q.userId }, { sellerId: q.userId }];
+    }
     if (q.status) where.orderStatus = q.status;
 
     return this.repo.search(where, p.skip, p.take);
@@ -38,5 +41,9 @@ export class OrderService {
 
   remove(id: string) {
     return this.repo.delete(id);
+  }
+
+  getUserStats(userId: string) {
+    return this.repo.getUserStats(userId);
   }
 }

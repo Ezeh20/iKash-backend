@@ -13,12 +13,11 @@ export class UsersRepository extends BaseRepository {
     return this.prisma.appUser.findUnique({ 
       where: { publicKey },
       include: {
-        payment_method: {
+        paymentMethods: {
           include: {
             payment_provider: true
           }
-        },
-        paymentMethods: true
+        }
       }
     });
   }

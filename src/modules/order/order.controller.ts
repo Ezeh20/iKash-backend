@@ -21,6 +21,11 @@ export class OrderController {
     return this.service.list(p, q);
   }
 
+  @Get('user-stats/:userId')
+  getUserStats(@Param('userId') userId: string) {
+    return this.service.getUserStats(userId);
+  }
+
   @Get(':id')
   get(@Param('id') id: string) {
     return this.service.get(id);
