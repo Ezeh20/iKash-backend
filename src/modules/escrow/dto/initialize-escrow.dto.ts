@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsUUID, Min } from 'class-validator';
+import { IsString, IsNumber, IsUUID, Min, IsOptional } from 'class-validator';
 
 export class InitializeEscrowDto {
   @IsUUID()
@@ -24,4 +24,9 @@ export class InitializeEscrowDto {
   /** Human-readable title for the escrow contract */
   @IsString()
   title: string;
+
+  /** Asset code being sold (e.g., XLM, USDC, native). Defaults to USDC if omitted. */
+  @IsString()
+  @IsOptional()
+  assetCode?: string;
 }

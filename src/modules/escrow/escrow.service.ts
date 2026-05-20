@@ -81,7 +81,9 @@ export class EscrowService {
           receiver: dto.buyerAddress,
         },
       ],
-      trustline: { address: usdcIssuer, symbol: 'USDC' },
+      trustline: (dto.assetCode === 'XLM' || dto.assetCode === 'native') 
+        ? null 
+        : { address: usdcIssuer, symbol: 'USDC' },
     };
 
     const deployResult = await this.tw.initializeEscrow(deployPayload);
@@ -187,10 +189,9 @@ export class EscrowService {
           receiver: dto.buyerAddress,
         },
       ],
-      trustline: {
-        address: usdcIssuer,
-        symbol: 'USDC',
-      },
+      trustline: (dto.assetCode === 'XLM' || dto.assetCode === 'native') 
+        ? null 
+        : { address: usdcIssuer, symbol: 'USDC' },
     };
 
     const result = await this.tw.initializeEscrow(payload);

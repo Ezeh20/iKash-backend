@@ -50,7 +50,7 @@ export class TrustlessWorkService {
       receiver: string;
       status?: string;
     }>;
-    trustline: { address: string; symbol: string };
+    trustline?: { address: string; symbol: string } | null;
   }): Promise<{ unsignedTransaction: string }> {
     return this.post('/deployer/multi-release', payload);
   }
