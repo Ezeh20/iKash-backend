@@ -39,7 +39,15 @@ export class OrderRepository extends BaseRepository {
       take,
       orderBy: { orderId: 'desc' },
       include: {
-        offer: true,
+        offer: {
+          include: {
+            payment_methods: {
+              include: {
+                payment_provider: true,
+              },
+            },
+          },
+        },
         escrow: true,
         buyer: true,
         seller: true,
@@ -51,7 +59,15 @@ export class OrderRepository extends BaseRepository {
     return this.prisma.order.findUnique({
       where: { orderId: id },
       include: {
-        offer: true,
+        offer: {
+          include: {
+            payment_methods: {
+              include: {
+                payment_provider: true,
+              },
+            },
+          },
+        },
         escrow: true,
         buyer: true,
         seller: true,

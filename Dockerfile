@@ -1,35 +1,42 @@
-# Use a build stage to install dependencies, generate Prisma client, and compile TypeScript
+# --- ETAPA DE COMPILACIÓN ---
 FROM node:22-slim AS builder
 
 WORKDIR /usr/src/app
 
-# Copy package metadata and install all dependencies required for the build
-COPY package.json ./
-COPY pnpm-lock.yaml* ./
-COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+# Copiar metadatos de dependencias
+COPY package*.json ./
+COPY tsconfig*.json nest-cli.json ./
 
-RUN npm install
+# Instalar TODAS las dependencias
+RUN npm ci
 
-# Copy application source and Prisma schema for build
+# Copiar esquema de Prisma y código fuente
 COPY prisma ./prisma
 COPY src ./src
 
-# Generate Prisma client and build the app
+# Generar cliente de Prisma y compilar NestJS
 RUN npx prisma generate
 RUN npm run build
 
-# Production image
+# --- ETAPA DE PRODUCCIÓN ---
 FROM node:22-slim AS runner
+
 WORKDIR /usr/src/app
 
-# Copy only production dependencies and built output
-COPY package.json ./
-COPY pnpm-lock.yaml* ./
-RUN npm install --omit=dev
+ENV NODE_ENV=production
+COPY package*.json ./
 
-COPY --from=builder /usr/src/app/dist ./dist
+# Instalar solo dependencias de producción de forma limpia
+RUN npm ci --omit=dev
+
+# Copiar la estructura de Prisma y el build compilado
 COPY --from=builder /usr/src/app/prisma ./prisma
+COPY --from=builder /usr/src/app/dist ./dist
 
-# Cloud Run will provide PORT via environment variable
-EXPOSE 3000
-CMD ["node", "dist/main"]
+# 💡 SOLUCIÓN AQUÍ: Volver a generar el cliente dentro del node_modules limpio de producción
+RUN npx prisma generate
+
+# Cloud Run inyecta el puerto 8080 automáticamente
+EXPOSE 8080
+
+CMD ["node", "dist/src/main.js"]
