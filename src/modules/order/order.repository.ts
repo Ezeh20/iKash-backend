@@ -9,11 +9,29 @@ export class OrderRepository extends BaseRepository {
     super(prisma.order, 'orderId');
   }
 
-  // Override create to atomically create order and mark associated offer as executed
-  async create(data: { offerId: string; buyerId: string; sellerId: string; assetAmount: string | number; fiatAmount: string | number; orderStatus?: string; expiresAt?: Date | string | null }) {
-    // Use a transaction to ensure both actions succeed together
+  // Override create to atomically create order+escrow and mark the offer as executed.
+  // Accepts an optional pre-generated orderId so the same UUID can be used as the
+  // Trustless Work engagementId before any DB record is persisted.
+  async create(data: {
+    orderId?: string;            // optional pre-generated UUID
+    offerId: string;
+    buyerId: string;
+    sellerId: string;
+    assetAmount: string | number;
+    fiatAmount: string | number;
+    orderStatus?: string;
+    expiresAt?: Date | string | null;
+    // Escrow data to persist alongside the order
+    escrow?: {
+      contractId: string;
+      sellerAddress: string;
+      buyerAddress: string;
+      amount: string | number;
+    };
+  }) {
     const created = await this.prisma.$transaction(async (tx) => {
       const payload: Prisma.OrderUncheckedCreateInput = {
+        ...(data.orderId ? { orderId: data.orderId } : {}),
         offerId: data.offerId,
         buyerId: data.buyerId,
         sellerId: data.sellerId,
@@ -24,7 +42,22 @@ export class OrderRepository extends BaseRepository {
       } as Prisma.OrderUncheckedCreateInput;
 
       const order = await tx.order.create({ data: payload });
-      // mark the offer executed so it no longer appears in active market
+
+      // Persist escrow record atomically with the order if data is provided
+      if (data.escrow) {
+        await tx.escrowOnChain.create({
+          data: {
+            orderId: order.orderId,
+            contractId: data.escrow.contractId,
+            sellerAddress: data.escrow.sellerAddress,
+            buyerAddress: data.escrow.buyerAddress,
+            amount: data.escrow.amount as any,
+            escrowStatus: 'initialized',
+          },
+        });
+      }
+
+      // Mark the offer as executed so it no longer appears in the active market
       await tx.offer.update({ where: { offerId: data.offerId }, data: { executed: true } });
       return order;
     });

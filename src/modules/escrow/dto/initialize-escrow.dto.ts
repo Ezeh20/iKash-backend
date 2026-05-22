@@ -8,15 +8,28 @@ export class InitializeEscrowDto {
   @IsString()
   signerAddress: string;
 
-  /** Seller's Stellar public key (serviceProvider + releaseSigner) */
+  /**
+   * Seller's Stellar public key.
+   *
+   * TW role mapping:
+   *   - releaseSigner → seller (releases crypto once fiat is confirmed)
+   *
+   * NOT serviceProvider — that role belongs to the buyer in the P2P flow.
+   */
   @IsString()
   sellerAddress: string;
 
-  /** Buyer's Stellar public key (receiver) */
+  /**
+   * Buyer's Stellar public key.
+   *
+   * TW role mapping:
+   *   - serviceProvider → buyer (delivers the fiat "service")
+   *   - receiver (at milestone level) → buyer (receives the crypto on release)
+   */
   @IsString()
   buyerAddress: string;
 
-  /** USDC amount for the escrow */
+  /** Amount for the escrow in the asset's unit */
   @IsNumber()
   @Min(0.0000001)
   amount: number;
@@ -25,7 +38,11 @@ export class InitializeEscrowDto {
   @IsString()
   title: string;
 
-  /** Asset code being sold (e.g., XLM, USDC, native). Defaults to USDC if omitted. */
+  /**
+   * Asset code being exchanged (e.g., 'XLM', 'USDC', 'native').
+   * Defaults to USDC if omitted.
+   * For XLM/native, trustline is sent as { address: '', symbol: 'XLM' }.
+   */
   @IsString()
   @IsOptional()
   assetCode?: string;
