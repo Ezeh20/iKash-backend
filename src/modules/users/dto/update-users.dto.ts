@@ -1,9 +1,10 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, Matches } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
+  @Matches(/^[a-z0-9.!_]+$/, { message: 'Alias must only contain lowercase letters, numbers, and allowed symbols (., !, _)' })
   alias?: string;
 
   @IsOptional()
