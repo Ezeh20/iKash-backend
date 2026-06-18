@@ -56,21 +56,23 @@ export class StellarService {
     this.assertPublicKey(publicKey);
 
     const res = await this.server
-      .transactions()
+      .payments()
       .forAccount(publicKey)
       .order('desc')
       .limit(Math.min(Math.max(limit, 1), 200))
       .call();
 
-    return res.records.map((t: any) => ({
-      id: t.id,
-      hash: t.hash,
-      created_at: t.created_at,
-      memo_type: t.memo_type,
-      memo: t.memo,
-      successful: t.successful,
-      fee_charged: t.fee_charged,
-      source_account: t.source_account,
+    return res.records.map((op: any) => ({
+      id: op.id,
+      transaction_hash: op.transaction_hash,
+      created_at: op.created_at,
+      type: op.type,
+      amount: op.amount ?? null,
+      asset: op.asset_type === 'native' ? 'XLM' : (op.asset_code ?? null),
+      asset_issuer: op.asset_issuer ?? null,
+      from: op.from ?? op.funder ?? null,
+      to: op.to ?? op.account ?? null,
+      direction: (op.to === publicKey || op.account === publicKey) ? 'received' : 'sent',
     }));
   }
 
