@@ -18,6 +18,11 @@ export class StellarController {
     return this.stellar.getBalances(publicKey);
   }
 
+  /**
+   * Returns the latest payment transactions for the authenticated user's wallet.
+   * The public key is resolved from the JWT token.
+   * @param limit - Number of transactions to return (default: 10, max: 200)
+   */
   @UseGuards(JwtAuthGuard)
   @Get('transactions')
   getMyTransactions(

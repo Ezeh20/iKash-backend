@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   Asset,
@@ -55,25 +55,32 @@ export class StellarService {
   async getTransactions(publicKey: string, limit = 10) {
     this.assertPublicKey(publicKey);
 
-    const res = await this.server
-      .payments()
-      .forAccount(publicKey)
-      .order('desc')
-      .limit(Math.min(Math.max(limit, 1), 200))
-      .call();
+    try {
+      const res = await this.server
+        .payments()
+        .forAccount(publicKey)
+        .order('desc')
+        .limit(Math.min(Math.max(limit, 1), 200))
+        .call();
 
-    return res.records.map((op: any) => ({
-      id: op.id,
-      transaction_hash: op.transaction_hash,
-      created_at: op.created_at,
-      type: op.type,
-      amount: op.amount ?? null,
-      asset: op.asset_type === 'native' ? 'XLM' : (op.asset_code ?? null),
-      asset_issuer: op.asset_issuer ?? null,
-      from: op.from ?? op.funder ?? null,
-      to: op.to ?? op.account ?? null,
-      direction: (op.to === publicKey || op.account === publicKey) ? 'received' : 'sent',
-    }));
+      return res.records.map((op: any) => ({
+        id: op.id,
+        transaction_hash: op.transaction_hash,
+        created_at: op.created_at,
+        type: op.type,
+        amount: op.amount ?? null,
+        asset: op.asset_type === 'native' ? 'XLM' : (op.asset_code ?? null),
+        asset_issuer: op.asset_issuer ?? null,
+        from: op.from ?? op.funder ?? null,
+        to: op.to ?? op.account ?? null,
+        direction: (op.to === publicKey || op.account === publicKey) ? 'received' : 'sent',
+      }));
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        throw new NotFoundException(`Account ${publicKey} not found on Stellar network.`);
+      }
+      throw new InternalServerErrorException('Failed to fetch transactions from Stellar network.');
+    }
   }
 
   /**
