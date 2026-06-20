@@ -59,4 +59,5 @@ seed-order.js
 accounts.yaml
 
 # GenDD Agentic Governance (local CLI config; may contain secrets)
-.gendd-flow-gov/
+/.gendd-flow-gov/
+
