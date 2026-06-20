@@ -88,8 +88,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
       400: ErrorCode.VALIDATION_ERROR,
       401: ErrorCode.UNAUTHORIZED_ACTION,
       403: ErrorCode.UNAUTHORIZED_ACTION,
-      404: ErrorCode.ORDER_NOT_FOUND, // generic fallback; AppException provides precision
+      404: ErrorCode.RESOURCE_NOT_FOUND, // generic fallback; AppException provides precision
+      422: ErrorCode.VALIDATION_ERROR,
       500: ErrorCode.INTERNAL_SERVER_ERROR,
+      502: ErrorCode.INTERNAL_SERVER_ERROR,
+      503: ErrorCode.INTERNAL_SERVER_ERROR,
     };
     return map[status] ?? ErrorCode.INTERNAL_SERVER_ERROR;
   }

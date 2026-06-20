@@ -16,9 +16,10 @@
  * which must only be called with secrets sourced from env vars.
  */
 
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { AppException, ErrorCode } from '../../common/errors';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import {
   InitializeMultiReleaseEscrowPayload,
@@ -81,11 +82,9 @@ export class TrustlessWorkService {
   ): Promise<UnsignedTransactionResponse> {
     const assetSymbol = payload.trustline?.symbol?.toUpperCase();
     if (assetSymbol !== 'USDC') {
-      throw new HttpException(
-        {
-          error: 'InvalidAsset',
-          message: `Only USDC is supported for escrow. Received: "${payload.trustline?.symbol}"`,
-        },
+      throw new AppException(
+        ErrorCode.UNSUPPORTED_ASSET,
+        `Only USDC is supported for escrow. Received: "${payload.trustline?.symbol}"`,
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -312,7 +311,6 @@ export class TrustlessWorkService {
       const status = err.response?.status ?? HttpStatus.BAD_GATEWAY;
       const responseData = err.response?.data;
 
-      // Log the full raw response body so validation errors are visible in detail
       this.logger.error(
         `Trustless Work API error [${context}]\n` +
         `  Status : ${status}\n` +
@@ -325,18 +323,16 @@ export class TrustlessWorkService {
         responseData?.error ??
         err.message;
 
-      throw new HttpException(
-        {
-          error: 'TrustlessWorkError',
-          message: `Escrow operation failed: ${message}`,
-          details: responseData,
-        },
-        status,
+      throw new AppException(
+        ErrorCode.ESCROW_CREATION_FAILED,
+        `Escrow operation failed: ${message}`,
+        status >= 400 && status < 600 ? status : HttpStatus.BAD_GATEWAY,
       );
     }
 
     this.logger.error(`Unexpected error [${context}]:`, err);
-    throw new HttpException(
+    throw new AppException(
+      ErrorCode.INTERNAL_SERVER_ERROR,
       'Unexpected error communicating with Trustless Work',
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
