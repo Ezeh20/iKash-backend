@@ -6,8 +6,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { StellarService } from '../stellar/stellar.service';
 import { UsersRepository } from '../users/users.repository';
+import { AMOUNT_REGEX } from '../../lib/constants/regex';
 
-const STROOPS_PER_UNIT = 10_000_000n; // USDC usa 7 decimales
+const STROOPS_PER_UNIT = 10_000_000n; // USDC uses 7 decimals
 
 @Injectable()
 export class SendService {
@@ -17,7 +18,7 @@ export class SendService {
     private readonly users: UsersRepository,
   ) {}
 
-  /** Resuelve alias o dirección y devuelve info del destinatario para confirmación. */
+  /** Resolves an alias or address and returns recipient info for confirmation. */
   async resolveRecipient(recipient: string) {
     const { address, alias } = await this.resolve(recipient);
 
@@ -28,30 +29,30 @@ export class SendService {
       exists = true;
       hasUsdcTrustline = balances.some((b: any) => b.asset_code === 'USDC');
     } catch {
-      // loadAccount lanza si la cuenta no existe en la red
+      // loadAccount throws if the account does not exist on the network
       exists = false;
     }
 
     return { address, alias, exists, hasUsdcTrustline };
   }
 
-  /** Valida, calcula el fee del 0.3% y arma la transacción USDC sin firmar. */
+  /** Validates, calculates the 0.3% fee and builds the unsigned USDC transaction. */
   async prepare(sourcePublicKey: string, recipient: string, amount: string) {
     const { address, alias } = await this.resolve(recipient);
 
     if (address === sourcePublicKey) {
-      throw new BadRequestException('No puedes enviarte a ti mismo.');
+      throw new BadRequestException('You cannot send funds to yourself.');
     }
 
     const amountStroops = this.toStroops(amount);
     if (amountStroops <= 0n) {
-      throw new BadRequestException('El monto debe ser mayor a 0.');
+      throw new BadRequestException('The amount must be greater than 0.');
     }
 
     const feeStroops = (amountStroops * BigInt(this.feeBps())) / 10_000n;
     if (feeStroops <= 0n) {
       throw new BadRequestException(
-        'El monto es demasiado pequeño para calcular el fee del 0.3%.',
+        'The amount is too small to calculate the 0.3% fee.',
       );
     }
 
@@ -79,14 +80,14 @@ export class SendService {
     };
   }
 
-  /** Envía a Stellar la transacción ya firmada por el frontend. */
+  /** Submits the transaction already signed by the frontend to Stellar. */
   async submit(signedXdr: string) {
     return this.stellar.submitSignedXdr(signedXdr);
   }
 
   // --- helpers ---
 
-  /** Resuelve un recipient (alias o dirección G...) a { address, alias }. */
+  /** Resolves a recipient (alias or G... address) to { address, alias }. */
   private async resolve(
     recipient: string,
   ): Promise<{ address: string; alias: string | null }> {
@@ -100,7 +101,7 @@ export class SendService {
     const user = await this.users.findByAlias(value);
     if (!user) {
       throw new NotFoundException(
-        `No se encontró ninguna wallet para el alias "${value}".`,
+        `No wallet was found for the alias "${value}".`,
       );
     }
     return { address: user.publicKey, alias: user.alias };
@@ -110,7 +111,7 @@ export class SendService {
     return value.length === 56 && value[0] === 'G';
   }
 
-  /** 0.3% en basis points (30 bps) configurable vía SEND_CRYPTO_FEE_PERCENT. */
+  /** 0.3% in basis points (30 bps), configurable via SEND_CRYPTO_FEE_PERCENT. */
   private feeBps(): number {
     const percent = Number(
       this.config.get<string>('SEND_CRYPTO_FEE_PERCENT') ?? '0.3',
@@ -125,23 +126,23 @@ export class SendService {
     const address = this.config.get<string>('IKASH_TREASURY_ADDRESS');
     if (!address) {
       throw new BadRequestException(
-        'Falta IKASH_TREASURY_ADDRESS para cobrar el fee.',
+        'IKASH_TREASURY_ADDRESS is missing to charge the fee.',
       );
     }
     return address;
   }
 
-  /** Convierte un monto decimal (string) a stroops (BigInt), 7 decimales. */
+  /** Converts a decimal amount (string) to stroops (BigInt), 7 decimals. */
   private toStroops(amount: string): bigint {
-    if (!/^\d+(\.\d{1,7})?$/.test(amount)) {
-      throw new BadRequestException('Monto inválido. Ej: "1" o "0.1234567"');
+    if (!AMOUNT_REGEX.test(amount)) {
+      throw new BadRequestException('Invalid amount. e.g. "1" or "0.1234567"');
     }
     const [intPart, decPart = ''] = amount.split('.');
     const decPadded = decPart.padEnd(7, '0');
     return BigInt(intPart) * STROOPS_PER_UNIT + BigInt(decPadded);
   }
 
-  /** Convierte stroops (BigInt) a string decimal con 7 decimales, sin ceros sobrantes. */
+  /** Converts stroops (BigInt) to a 7-decimal string, trimming trailing zeros. */
   private fromStroops(stroops: bigint): string {
     const intPart = stroops / STROOPS_PER_UNIT;
     const decPart = stroops % STROOPS_PER_UNIT;

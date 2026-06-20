@@ -18,22 +18,22 @@ import { SubmitSendDto } from './dto/submit-send.dto';
 export class SendController {
   constructor(private readonly service: SendService) {}
 
-  // Resuelve alias/dirección y devuelve info del destinatario para confirmación.
+  // Resolves an alias/address and returns recipient info for confirmation.
   @Get('resolve')
   resolve(@Query('recipient') recipient: string) {
     if (!recipient) {
-      throw new BadRequestException('Falta el parámetro "recipient".');
+      throw new BadRequestException('The "recipient" parameter is missing.');
     }
     return this.service.resolveRecipient(recipient);
   }
 
-  // Valida, calcula el fee del 0.3% y devuelve la transacción USDC sin firmar.
+  // Validates, calculates the 0.3% fee and returns the unsigned USDC transaction.
   @Post('prepare')
   prepare(@Request() req: any, @Body() dto: PrepareSendDto) {
     return this.service.prepare(req.user.publicKey, dto.recipient, dto.amount);
   }
 
-  // Recibe el XDR firmado por el frontend y lo envía a Stellar.
+  // Receives the XDR signed by the frontend and submits it to Stellar.
   @Post('submit')
   submit(@Body() dto: SubmitSendDto) {
     return this.service.submit(dto.signedXdr);

@@ -1,15 +1,16 @@
 import { IsString, Matches, MinLength } from 'class-validator';
+import { AMOUNT_REGEX } from '../../../lib/constants/regex';
 
 export class PrepareSendDto {
-  // Alias del usuario o dirección Stellar (G...)
+  // User alias or Stellar address (G...)
   @IsString()
   @MinLength(1)
   recipient!: string;
 
-  // Monto a enviar en USDC (hasta 7 decimales)
+  // Amount to send in USDC (up to 7 decimals)
   @IsString()
-  @Matches(/^\d+(\.\d{1,7})?$/, {
-    message: 'amount inválido. Ej: "1" o "0.1234567"',
+  @Matches(AMOUNT_REGEX, {
+    message: 'Invalid amount. e.g. "1" or "0.1234567"',
   })
   amount!: string;
 }
