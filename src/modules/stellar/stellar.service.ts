@@ -10,6 +10,8 @@ import {
   Operation,
   TransactionBuilder,
 } from '@stellar/stellar-sdk';
+import { AMOUNT_REGEX } from '../../lib/constants/regex';
+import { describeHorizonError } from '../../lib/utils/stellar-error.util';
 
 type NetworkType = 'testnet' | 'public';
 
@@ -33,6 +35,11 @@ export class StellarService {
     this.signerSecret = this.config.get<string>('STELLAR_SIGNER_SECRET');
 
     this.server = new Horizon.Server(horizonUrl);
+  }
+
+  /** Passphrase of the configured network (testnet/public). */
+  getNetworkPassphrase() {
+    return this.networkPassphrase;
   }
 
   async getAccount(publicKey: string) {
@@ -84,18 +91,18 @@ export class StellarService {
   }
 
   /**
-   * Envía un pago firmado por tu backend.
-   * Para producción: mejor firmar del lado cliente o custodiar secreto con KMS/HSM.
+   * Sends a payment signed by your backend.
+   * For production: prefer client-side signing or custody the secret with KMS/HSM.
    */
   async sendPayment(params: {
     destination: string;
     amount: string; // "1.5"
     memo?: string;
-    asset?: { code: string; issuer?: string }; // si no viene => XLM
+    asset?: { code: string; issuer?: string }; // defaults to XLM if omitted
   }) {
     if (!this.signerSecret) {
       throw new BadRequestException(
-        'Falta STELLAR_SIGNER_SECRET para firmar la transacción.',
+        'STELLAR_SIGNER_SECRET is missing to sign the transaction.',
       );
     }
 
@@ -105,13 +112,13 @@ export class StellarService {
     const sourceKeypair = Keypair.fromSecret(this.signerSecret);
     const sourcePublicKey = sourceKeypair.publicKey();
 
-    // Cargar cuenta origen
+    // Load the source account
     const account = await this.server.loadAccount(sourcePublicKey);
 
-    // Asset (XLM o token)
+    // Asset (XLM or token)
     const asset = this.buildAsset(params.asset);
 
-    // Construcción TX
+    // Build the transaction
     let builder = new TransactionBuilder(account, {
       fee: String(BASE_FEE),
       networkPassphrase: this.networkPassphrase,
@@ -124,13 +131,13 @@ export class StellarService {
     );
 
     if (params.memo) {
-      // Memo text: límite aprox 28 bytes
+      // Memo text: limit is roughly 28 bytes
       builder = builder.addMemo(Memo.text(params.memo));
     }
 
     const tx = builder.setTimeout(60).build();
 
-    // Firmar + enviar
+    // Sign + submit
     tx.sign(sourceKeypair);
     const res = await this.server.submitTransaction(tx);
 
@@ -141,12 +148,97 @@ export class StellarService {
     };
   }
 
+  /**
+   * Builds an UNSIGNED USDC transaction for the Send Crypto flow.
+   * Includes a payment to the recipient and a second payment with the fee to the collector.
+   * The frontend signs the resulting XDR; the backend only builds it.
+   */
+  async buildUnsignedUsdcSend(params: {
+    sourcePublicKey: string;
+    destination: string;
+    amount: string;
+    feeAddress: string;
+    feeAmount: string;
+  }) {
+    this.assertPublicKey(params.sourcePublicKey);
+    this.assertPublicKey(params.destination);
+    this.assertPublicKey(params.feeAddress);
+    this.assertAmount(params.amount);
+    this.assertAmount(params.feeAmount);
+
+    const usdc = this.getUsdcAsset();
+
+    const account = await this.server.loadAccount(params.sourcePublicKey);
+
+    const tx = new TransactionBuilder(account, {
+      fee: String(BASE_FEE),
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        Operation.payment({
+          destination: params.destination,
+          asset: usdc,
+          amount: params.amount,
+        }),
+      )
+      .addOperation(
+        Operation.payment({
+          destination: params.feeAddress,
+          asset: usdc,
+          amount: params.feeAmount,
+        }),
+      )
+      .setTimeout(180)
+      .build();
+
+    return {
+      xdr: tx.toXDR(),
+      networkPassphrase: this.networkPassphrase,
+    };
+  }
+
+  /**
+   * Receives an XDR already signed by the client and submits it to Stellar.
+   * Translates Horizon errors into clear messages.
+   */
+  async submitSignedXdr(signedXdr: string) {
+    let tx;
+    try {
+      tx = TransactionBuilder.fromXDR(signedXdr, this.networkPassphrase);
+    } catch {
+      throw new BadRequestException('Invalid or malformed signedXdr.');
+    }
+
+    try {
+      const res = await this.server.submitTransaction(tx as any);
+      return {
+        hash: res.hash,
+        ledger: res.ledger,
+        successful: res.successful,
+      };
+    } catch (err: any) {
+      throw new BadRequestException(describeHorizonError(err));
+    }
+  }
+
+  /** Builds the USDC Asset from the configured issuer. */
+  private getUsdcAsset() {
+    const issuer = this.config.get<string>('TRUSTLESS_WORK_USDC_ISSUER');
+    if (!issuer) {
+      throw new BadRequestException(
+        'TRUSTLESS_WORK_USDC_ISSUER is missing to operate with USDC.',
+      );
+    }
+    this.assertPublicKey(issuer);
+    return new Asset('USDC', issuer);
+  }
+
   private buildAsset(asset?: { code: string; issuer?: string }) {
     if (!asset || asset.code === 'XLM') return Asset.native();
 
     if (!asset.issuer) {
       throw new BadRequestException(
-        'Para assets no nativos debes enviar issuer (ej: USDC issuer).',
+        'Non-native assets require an issuer (e.g. USDC issuer).',
       );
     }
 
@@ -155,16 +247,16 @@ export class StellarService {
   }
 
   private assertPublicKey(key: string) {
-    // validación simple (evita dependencias extra)
+    // simple validation (avoids extra dependencies)
     if (!key || key[0] !== 'G' || key.length < 50) {
-      throw new BadRequestException('Public key inválida (debe iniciar con G...).');
+      throw new BadRequestException('Invalid public key (must start with G...).');
     }
   }
 
   private assertAmount(amount: string) {
-    // Stellar usa hasta 7 decimales, y debe ser > 0
-    if (!/^\d+(\.\d{1,7})?$/.test(amount) || Number(amount) <= 0) {
-      throw new BadRequestException('Amount inválido. Ej: "1" o "0.1234567"');
+    // Stellar uses up to 7 decimals, and the amount must be > 0
+    if (!AMOUNT_REGEX.test(amount) || Number(amount) <= 0) {
+      throw new BadRequestException('Invalid amount. e.g. "1" or "0.1234567"');
     }
   }
 }
