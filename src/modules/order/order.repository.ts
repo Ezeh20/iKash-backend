@@ -44,8 +44,9 @@ export class OrderRepository extends BaseRepository {
       const order = await tx.order.create({ data: payload });
 
       // Persist escrow record atomically with the order if data is provided
+      let escrowId: string | null = null;
       if (data.escrow) {
-        await tx.escrowOnChain.create({
+        const escrow = await tx.escrowOnChain.create({
           data: {
             orderId: order.orderId,
             contractId: data.escrow.contractId,
@@ -55,11 +56,12 @@ export class OrderRepository extends BaseRepository {
             escrowStatus: 'initialized',
           },
         });
+        escrowId = escrow.escrowId;
       }
 
       // Mark the offer as executed so it no longer appears in the active market
       await tx.offer.update({ where: { offerId: data.offerId }, data: { executed: true } });
-      return order;
+      return { ...order, escrowId };
     });
 
     return created;

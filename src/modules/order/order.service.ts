@@ -67,7 +67,13 @@ export class OrderService {
 
     this.logger.log(`Order ${orderId} and escrow persisted successfully.`);
 
-    return { ...order, contractId, unsignedFundTransaction };
+    // ── Return combined response ─────────────────────────────────────────
+    return {
+      ...order,
+      escrow: order.escrowId ? { escrowId: order.escrowId } : undefined,
+      contractId,
+      unsignedFundTransaction,
+    };
   }
 
   list(p: PaginationDto, q: any) {
