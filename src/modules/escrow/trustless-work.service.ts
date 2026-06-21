@@ -16,7 +16,8 @@
  * which must only be called with secrets sourced from env vars.
  */
 
-import { Injectable, Logger } from '@nestjs/common';import { ConfigService } from '@nestjs/config';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { AppException, ErrorCode } from '../../common/errors';
 import * as StellarSdk from '@stellar/stellar-sdk';
