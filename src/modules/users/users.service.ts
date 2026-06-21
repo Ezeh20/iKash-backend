@@ -120,7 +120,13 @@ export class UsersService {
     return item;
   }
 
-  update(id: string, dto: UpdateUserDto) {
+  update(id: string, dto: UpdateUserDto, callerUserId?: string) {
+    if (callerUserId && callerUserId !== id) {
+      throw new AppException(
+        ErrorCode.UNAUTHORIZED_ACTION,
+        'You can only update your own profile.',
+      );
+    }
     const data: any = { ...dto };
     if (dto.kycStatus) data.kycUpdatedAt = new Date();
     return this.repo.update(id, data);

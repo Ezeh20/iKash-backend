@@ -11,6 +11,7 @@ import {
   TransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { AppException, ErrorCode } from '../../common/errors';
+import { describeHorizonError } from '../../lib/utils/stellar-error.util';
 
 type NetworkType = 'testnet' | 'public';
 
@@ -141,6 +142,96 @@ export class StellarService {
       ledger: res.ledger,
       successful: res.successful,
     };
+  }
+
+  /**
+   * Builds an unsigned USDC transaction with a payment to the recipient
+   * and a second payment for the platform fee. The frontend signs the XDR.
+   */
+  async buildUnsignedUsdcSend(params: {
+    sourcePublicKey: string;
+    destination: string;
+    amount: string;
+    feeAddress: string;
+    feeAmount: string;
+  }) {
+    this.assertPublicKey(params.sourcePublicKey);
+    this.assertPublicKey(params.destination);
+    this.assertPublicKey(params.feeAddress);
+    this.assertAmount(params.amount);
+    this.assertAmount(params.feeAmount);
+
+    const usdc = this.getUsdcAsset();
+    const account = await this.server.loadAccount(params.sourcePublicKey);
+
+    const tx = new TransactionBuilder(account, {
+      fee: String(BASE_FEE),
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        Operation.payment({
+          destination: params.destination,
+          asset: usdc,
+          amount: params.amount,
+        }),
+      )
+      .addOperation(
+        Operation.payment({
+          destination: params.feeAddress,
+          asset: usdc,
+          amount: params.feeAmount,
+        }),
+      )
+      .setTimeout(180)
+      .build();
+
+    return {
+      xdr: tx.toXDR(),
+      networkPassphrase: this.networkPassphrase,
+    };
+  }
+
+  /**
+   * Receives an XDR already signed by the client and submits it to Stellar.
+   * Translates Horizon errors into clear messages via describeHorizonError.
+   */
+  async submitSignedXdr(signedXdr: string) {
+    let tx: any;
+    try {
+      tx = TransactionBuilder.fromXDR(signedXdr, this.networkPassphrase);
+    } catch {
+      throw new AppException(
+        ErrorCode.INVALID_AMOUNT,
+        'Invalid or malformed signedXdr.',
+      );
+    }
+
+    try {
+      const res = await this.server.submitTransaction(tx);
+      return {
+        hash: res.hash,
+        ledger: res.ledger,
+        successful: res.successful,
+      };
+    } catch (err: any) {
+      throw new AppException(
+        ErrorCode.STELLAR_TRANSACTION_FAILED,
+        describeHorizonError(err),
+      );
+    }
+  }
+
+  /** Builds the USDC Asset from the configured issuer. */
+  private getUsdcAsset() {
+    const issuer = this.config.get<string>('TRUSTLESS_WORK_USDC_ISSUER');
+    if (!issuer) {
+      throw new AppException(
+        ErrorCode.MISSING_ASSET_ISSUER,
+        'TRUSTLESS_WORK_USDC_ISSUER is not configured for USDC operations.',
+      );
+    }
+    this.assertPublicKey(issuer);
+    return new Asset('USDC', issuer);
   }
 
   private buildAsset(asset?: { code: string; issuer?: string }) {
