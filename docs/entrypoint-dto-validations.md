@@ -10,10 +10,10 @@ The implementation is split into two layers:
 
 ## 2. Affected Endpoints
 
-| Method | Path | Purpose |
-| :--- | :--- | :--- |
-| `GET` | `/users/validate-alias` | Validates alias format and checks availability |
-| `PATCH` | `/users/:id` | Updates user profile; enforces alias uniqueness on change |
+| Method | Path | Auth | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/users/validate-alias` | JWT required | Validates alias format and checks availability |
+| `PATCH` | `/users/:id` | JWT required | Updates user profile; enforces alias uniqueness on change |
 
 ## 3. `ValidateAliasDto` — Field Constraints
 

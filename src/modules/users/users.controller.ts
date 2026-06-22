@@ -46,6 +46,7 @@ export class UsersController {
    *
    * @see docs/entrypoint-dto-validations.md for the full scenario matrix.
    */
+  @UseGuards(JwtAuthGuard)
   @Get('validate-alias')
   checkAlias(@Query() query: ValidateAliasDto) {
     return this.service.isAliasAvailable(query.alias);
