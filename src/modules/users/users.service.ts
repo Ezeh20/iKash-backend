@@ -6,6 +6,7 @@ import { UsersRepository } from './users.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SetupAccountDto } from './dto/setup-account.dto';
 import { AuthService } from '../auth/auth.service';
+import { FileStorageService } from './file-storage/file-storage.service';
 import { AppException, ErrorCode } from '../../common/errors';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class UsersService {
     private readonly repo: UsersRepository,
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
+    private readonly fileStorageService: FileStorageService,
   ) {}
 
   async getOrCreateAccount(publicKey: string) {
@@ -59,6 +61,10 @@ export class UsersService {
       ...profileData,
       pendingAccountInfo: false,
     });
+
+    void bankName;
+    void accountHolderName;
+    void accountNumber;
 
     if (providerId && accountIdentifier) {
       const provider = await this.prisma.payment_provider.findUnique({
@@ -144,6 +150,31 @@ export class UsersService {
     const data: any = { ...dto };
     if (dto.kycStatus) data.kycUpdatedAt = new Date();
     return this.repo.update(id, data);
+  }
+
+  async uploadProfilePicture(id: string, file: {
+    originalname: string;
+    mimetype: string;
+    size: number;
+  }, userSnapshot?: Record<string, unknown>) {
+    if (process.env.MOCK_PROFILE_UPLOAD === 'true') {
+      const uploadedFile = await this.fileStorageService.uploadFile(file);
+      return {
+        ...(userSnapshot ?? {}),
+        userId: id,
+        profileImageUrl: uploadedFile.url,
+      };
+    }
+
+    const user = await this.repo.findById(id);
+    if (!user) {
+      throw new AppException(ErrorCode.USER_NOT_FOUND, `User ${id} not found`);
+    }
+
+    const uploadedFile = await this.fileStorageService.uploadFile(file);
+    return this.repo.update(id, {
+      profileImageUrl: uploadedFile.url,
+    });
   }
 
   remove(id: string) {
