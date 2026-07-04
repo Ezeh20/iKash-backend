@@ -13,6 +13,7 @@ import { KycModule } from './modules/kyc/kyc.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PaymentProvidersModule } from './modules/payment-providers/payment-providers.module';
 import { SendModule } from './modules/send/send.module';
+import { StatsModule } from './modules/stats/stats.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { SendModule } from './modules/send/send.module';
     AuthModule,
     PaymentProvidersModule,
     SendModule,
+    StatsModule,
   ],
 })
 export class AppModule {}

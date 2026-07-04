@@ -13,7 +13,7 @@ export class OrderRepository extends BaseRepository {
   // Accepts an optional pre-generated orderId so the same UUID can be used as the
   // Trustless Work engagementId before any DB record is persisted.
   async create(data: {
-    orderId?: string;            // optional pre-generated UUID
+    orderId?: string; // optional pre-generated UUID
     offerId: string;
     buyerId: string;
     sellerId: string;
@@ -38,7 +38,9 @@ export class OrderRepository extends BaseRepository {
         assetAmount: data.assetAmount as any,
         fiatAmount: data.fiatAmount as any,
         orderStatus: (data.orderStatus as any) || undefined,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt as string) : undefined,
+        expiresAt: data.expiresAt
+          ? new Date(data.expiresAt as string)
+          : undefined,
       } as Prisma.OrderUncheckedCreateInput;
 
       const order = await tx.order.create({ data: payload });
@@ -60,7 +62,10 @@ export class OrderRepository extends BaseRepository {
       }
 
       // Mark the offer as executed so it no longer appears in the active market
-      await tx.offer.update({ where: { offerId: data.offerId }, data: { executed: true } });
+      await tx.offer.update({
+        where: { offerId: data.offerId },
+        data: { executed: true },
+      });
       return { ...order, escrowId };
     });
 

@@ -87,7 +87,10 @@ export class TrustlessWorkService {
         `Only USDC is supported for escrow. Received: "${payload.trustline?.symbol}"`,
       );
     }
-    return this.post<UnsignedTransactionResponse>('/deployer/multi-release', payload);
+    return this.post<UnsignedTransactionResponse>(
+      '/deployer/multi-release',
+      payload,
+    );
   }
 
   // ─── Fund ──────────────────────────────────────────────────────────────────
@@ -231,18 +234,18 @@ export class TrustlessWorkService {
       const txEnd = raw.length - 4 - existingSigsLength;
 
       signedEnvelope = Buffer.concat([
-        raw.subarray(0, 4),       // envelope type
-        raw.subarray(4, txEnd),   // tx body
-        newSigCount,              // updated sig count
-        existingSigs,             // existing signatures
-        decoratedSig,             // our new signature
+        raw.subarray(0, 4), // envelope type
+        raw.subarray(4, txEnd), // tx body
+        newSigCount, // updated sig count
+        existingSigs, // existing signatures
+        decoratedSig, // our new signature
       ]);
     } else {
       signedEnvelope = Buffer.concat([
-        raw.subarray(0, 4),       // envelope type
-        txBodyBytes,              // tx body
-        newSigCount,              // sig count = 1
-        decoratedSig,             // our signature
+        raw.subarray(0, 4), // envelope type
+        txBodyBytes, // tx body
+        newSigCount, // sig count = 1
+        decoratedSig, // our signature
       ]);
     }
 
@@ -312,15 +315,13 @@ export class TrustlessWorkService {
 
       this.logger.error(
         `Trustless Work API error [${context}]\n` +
-        `  Status : ${status}\n` +
-        `  Body   : ${JSON.stringify(responseData, null, 2)}\n` +
-        `  Message: ${err.message}`,
+          `  Status : ${status}\n` +
+          `  Body   : ${JSON.stringify(responseData, null, 2)}\n` +
+          `  Message: ${err.message}`,
       );
 
       const message =
-        responseData?.message ??
-        responseData?.error ??
-        err.message;
+        responseData?.message ?? responseData?.error ?? err.message;
 
       throw new AppException(
         ErrorCode.ESCROW_CREATION_FAILED,
