@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Storage, Bucket } from '@google-cloud/storage';
+import { Storage, Bucket, File } from '@google-cloud/storage';
 import {
   FileStorageService,
   StoredFile,
@@ -46,9 +46,10 @@ export class GcsFileStorageService
 
   async onModuleInit(): Promise<void> {
     try {
-      const [exists] = await this.bucket.exists();
+      const bucket = this.bucket;
+      const [exists] = await bucket.exists();
       if (!exists) {
-        await this.bucket.create();
+        await bucket.create();
         this.logger.log(`Created bucket "${this.bucketName}"`);
       }
     } catch (error: unknown) {
@@ -73,7 +74,7 @@ export class GcsFileStorageService
         return `profile-images/${timestamp}-${random}-${safeName || 'upload'}`;
       })();
 
-    const blob = this.bucket.file(key);
+    const blob: File = this.bucket.file(key);
 
     await blob.save(file.buffer, {
       contentType: file.mimetype,

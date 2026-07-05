@@ -29,8 +29,19 @@ const TRANSACTION_ERROR_MESSAGES: Record<string, string> = {
   tx_too_early: 'The transaction expired. Please prepare and sign it again.',
 };
 
+interface ErrorWithResponse {
+  response?: {
+    data?: {
+      extras?: {
+        result_codes?: HorizonResultCodes;
+      };
+    };
+  };
+}
+
 function extractResultCodes(err: unknown): HorizonResultCodes {
-  const codes = (err as any)?.response?.data?.extras?.result_codes;
+  const codes = (err as ErrorWithResponse)?.response?.data?.extras
+    ?.result_codes;
   return {
     transaction: codes?.transaction,
     operations: codes?.operations ?? [],

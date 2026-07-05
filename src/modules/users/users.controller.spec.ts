@@ -4,15 +4,25 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UploadFileInput } from '../file-storage/file-storage.service';
+import { Request } from 'express';
+
+type UploadProfilePicRequest = Request & {
+  user: { userId: string; publicKey: string };
+};
 
 describe('UsersController', () => {
   let controller: UsersController;
-  let mockUsersService: any;
+  let mockUsersService: {
+    uploadProfilePicture: jest.Mock;
+    findByPublicKey: jest.Mock;
+    update: jest.Mock;
+  };
 
   beforeEach(async () => {
     mockUsersService = {
       uploadProfilePicture: jest.fn(),
       findByPublicKey: jest.fn(),
+      update: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -35,7 +45,7 @@ describe('UsersController', () => {
     const mockRequest = (userId: string, publicKey?: string) =>
       ({
         user: { userId, publicKey: publicKey ?? 'G' + userId },
-      }) as any;
+      }) as unknown as UploadProfilePicRequest;
 
     const mockFile: UploadFileInput = {
       originalname: 'test.png',
@@ -45,7 +55,10 @@ describe('UsersController', () => {
     };
 
     it('should successfully upload profile picture', async () => {
-      const expectedResponse = { userId: 'user-1', profileImageUrl: 'http://url' };
+      const expectedResponse = {
+        userId: 'user-1',
+        profileImageUrl: 'http://url',
+      };
       mockUsersService.uploadProfilePicture.mockResolvedValue(expectedResponse);
 
       const result = await controller.uploadProfilePicture(
@@ -56,20 +69,34 @@ describe('UsersController', () => {
       );
 
       expect(result).toEqual(expectedResponse);
-      expect(mockUsersService.uploadProfilePicture).toHaveBeenCalledWith('user-1', mockFile, undefined);
+      expect(mockUsersService.uploadProfilePicture).toHaveBeenCalledWith(
+        'user-1',
+        mockFile,
+        undefined,
+      );
     });
 
     it('should throw ForbiddenException if user tries to update another users profile', async () => {
       mockUsersService.findByPublicKey.mockResolvedValue(null);
 
       await expect(
-        controller.uploadProfilePicture('user-1', mockRequest('user-2'), undefined, mockFile),
+        controller.uploadProfilePicture(
+          'user-1',
+          mockRequest('user-2'),
+          undefined,
+          mockFile,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw BadRequestException if no file is provided', async () => {
       await expect(
-        controller.uploadProfilePicture('user-1', mockRequest('user-1'), undefined, undefined as any),
+        controller.uploadProfilePicture(
+          'user-1',
+          mockRequest('user-1'),
+          undefined,
+          undefined as unknown as UploadFileInput,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -77,7 +104,12 @@ describe('UsersController', () => {
       const invalidFile = { ...mockFile, mimetype: 'application/pdf' };
 
       await expect(
-        controller.uploadProfilePicture('user-1', mockRequest('user-1'), undefined, invalidFile),
+        controller.uploadProfilePicture(
+          'user-1',
+          mockRequest('user-1'),
+          undefined,
+          invalidFile,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -85,7 +117,12 @@ describe('UsersController', () => {
       const hugeFile = { ...mockFile, size: 10 * 1024 * 1024 }; // 10MB
 
       await expect(
-        controller.uploadProfilePicture('user-1', mockRequest('user-1'), undefined, hugeFile),
+        controller.uploadProfilePicture(
+          'user-1',
+          mockRequest('user-1'),
+          undefined,
+          hugeFile,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -115,6 +152,45 @@ describe('UsersController', () => {
           mockFile,
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('update', () => {
+    it('passes the authenticated user id to the update service', () => {
+      mockUsersService.update.mockReturnValue({
+        userId: 'user-1',
+        alias: 'new-alias',
+      });
+      const request = { user: { userId: 'user-1' } };
+
+      const result: unknown = controller.update(
+        'user-1',
+        { alias: 'new-alias' },
+        request as unknown as Parameters<typeof controller.update>[2],
+      );
+
+      expect(result).toEqual({ userId: 'user-1', alias: 'new-alias' });
+      expect(mockUsersService.update).toHaveBeenCalledWith(
+        'user-1',
+        { alias: 'new-alias' },
+        'user-1',
+      );
+    });
+
+    it('falls back to id when a strategy exposes req.user.id', async () => {
+      const request = { user: { id: 'user-1' } };
+
+      await controller.update(
+        'user-1',
+        { alias: 'new-alias' },
+        request as unknown as Parameters<typeof controller.update>[2],
+      );
+
+      expect(mockUsersService.update).toHaveBeenCalledWith(
+        'user-1',
+        { alias: 'new-alias' },
+        'user-1',
+      );
     });
   });
 });

@@ -3,26 +3,29 @@ import { PaginationDto } from '../../common/pagination.dto';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { ChatMessageRepository } from './chat-message.repository';
 import { AppException, ErrorCode } from '../../common/errors';
+import { ChatMessage } from '@prisma/client';
 
 @Injectable()
 export class ChatMessageService {
   constructor(private readonly repo: ChatMessageRepository) {}
 
-  create(dto: CreateChatMessageDto) {
-    return this.repo.create(dto);
+  create(dto: CreateChatMessageDto): Promise<ChatMessage> {
+    return this.repo.create(
+      dto as unknown as Record<string, unknown>,
+    ) as Promise<ChatMessage>;
   }
 
-  list(p: PaginationDto, orderId?: string) {
+  list(p: PaginationDto, orderId?: string): Promise<ChatMessage[]> {
     if (orderId) return this.repo.findByOrder(orderId, p.skip, p.take ?? 50);
     return this.repo.findMany({
       skip: p.skip,
       take: p.take ?? 50,
       orderBy: { timestamp: 'desc' },
-    });
+    }) as Promise<ChatMessage[]>;
   }
 
-  async get(id: string) {
-    const item = await this.repo.findById(id);
+  async get(id: string): Promise<ChatMessage> {
+    const item = (await this.repo.findById(id)) as ChatMessage;
     if (!item) {
       throw new AppException(
         ErrorCode.CHAT_MESSAGE_NOT_FOUND,
@@ -32,7 +35,7 @@ export class ChatMessageService {
     return item;
   }
 
-  remove(id: string) {
-    return this.repo.delete(id);
+  remove(id: string): Promise<ChatMessage> {
+    return this.repo.delete(id) as Promise<ChatMessage>;
   }
 }

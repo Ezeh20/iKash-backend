@@ -4,9 +4,10 @@ import {
   Get,
   Post,
   Query,
-  Request,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SendService } from './send.service';
 import { PrepareSendDto } from './dto/prepare-send.dto';
@@ -32,7 +33,10 @@ export class SendController {
 
   /** Validates, calculates the 0.3% fee and returns the unsigned USDC transaction. */
   @Post('prepare')
-  prepare(@Request() req: any, @Body() dto: PrepareSendDto) {
+  prepare(
+    @Req() req: Request & { user: { publicKey: string } },
+    @Body() dto: PrepareSendDto,
+  ) {
     return this.service.prepare(req.user.publicKey, dto.recipient, dto.amount);
   }
 

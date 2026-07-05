@@ -311,7 +311,9 @@ export class TrustlessWorkService {
   private handleError(err: unknown, context: string): never {
     if (err instanceof AxiosError) {
       const status = err.response?.status ?? HttpStatus.BAD_GATEWAY;
-      const responseData = err.response?.data;
+      const responseData = err.response?.data as
+        | { message?: string; error?: string }
+        | undefined;
 
       this.logger.error(
         `Trustless Work API error [${context}]\n` +
