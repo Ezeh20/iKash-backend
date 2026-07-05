@@ -35,8 +35,12 @@ import {
   MultiReleaseRoles,
   Trustline,
 } from './trustless-work.types';
+import { EscrowOnChain } from '@prisma/client';
 import { AppException, ErrorCode } from '../../common/errors';
-import { FileStorageService, UploadFileInput } from '../file-storage/file-storage.service';
+import {
+  FileStorageService,
+  UploadFileInput,
+} from '../file-storage/file-storage.service';
 
 @Injectable()
 export class EscrowService {
@@ -116,8 +120,8 @@ export class EscrowService {
     };
   }
 
-  private async getOrFail(id: string) {
-    const escrow = await this.repo.findById(id);
+  private async getOrFail(id: string): Promise<EscrowOnChain> {
+    const escrow = (await this.repo.findById(id)) as EscrowOnChain;
     if (!escrow) {
       throw new AppException(
         ErrorCode.ESCROW_NOT_FOUND,
@@ -236,21 +240,21 @@ export class EscrowService {
 
     let escrow = existing;
     if (!escrow) {
-      escrow = await this.repo.create({
+      escrow = (await this.repo.create({
         orderId: dto.orderId,
         buyerAddress: dto.buyerAddress,
         sellerAddress: dto.sellerAddress,
         amount: dto.amount,
         escrowStatus: 'initialized',
-      });
+      })) as EscrowOnChain;
     }
-    await this.repo.update(escrow!.escrowId, {
+    await this.repo.update(escrow.escrowId, {
       contractId,
       escrowStatus: 'initialized',
     });
 
     return {
-      escrowId: escrow!.escrowId,
+      escrowId: escrow.escrowId,
       contractId,
       unsignedFundTransaction,
     };
@@ -292,13 +296,13 @@ export class EscrowService {
 
     let escrow = await this.repo.findByOrder(dto.orderId);
     if (!escrow) {
-      escrow = await this.repo.create({
+      escrow = (await this.repo.create({
         orderId: dto.orderId,
         buyerAddress: dto.buyerAddress,
         sellerAddress: dto.sellerAddress,
         amount: dto.amount,
         escrowStatus: 'pending',
-      });
+      })) as EscrowOnChain;
     } else {
       await this.repo.update(escrow.escrowId, {
         buyerAddress: dto.buyerAddress,
@@ -367,10 +371,18 @@ export class EscrowService {
 
   async uploadEvidence(id: string, file?: UploadFileInput) {
     if (!file || !file.buffer) {
-      throw new AppException(ErrorCode.VALIDATION_ERROR, 'Evidence file is required');
+      throw new AppException(
+        ErrorCode.VALIDATION_ERROR,
+        'Evidence file is required',
+      );
     }
 
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    const allowedMimes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/pdf',
+    ];
     if (!allowedMimes.includes(file.mimetype)) {
       throw new AppException(
         ErrorCode.VALIDATION_ERROR,
@@ -543,7 +555,9 @@ export class EscrowService {
         'An escrow already exists for this order',
       );
     }
-    return this.repo.create(dto);
+    return this.repo.create(
+      dto as unknown as Record<string, unknown>,
+    ) as Promise<EscrowOnChain>;
   }
 
   list(p: PaginationDto, orderId?: string) {
@@ -569,7 +583,7 @@ export class EscrowService {
   }
 
   update(id: string, dto: UpdateEscrowDto) {
-    return this.repo.update(id, dto);
+    return this.repo.update(id, dto as unknown as Record<string, unknown>);
   }
 
   remove(id: string) {

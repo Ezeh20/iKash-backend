@@ -1,22 +1,26 @@
-import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from '../auth/auth.service';
+import { FileStorageService } from '../file-storage/file-storage.service';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { FileStorageService } from '../file-storage/file-storage.service';
 
 describe('UsersService', () => {
   let service: UsersService;
-  let repo: any;
-  let mockFileStorageService: any;
+  let repo: {
+    update: jest.Mock;
+    findById: jest.Mock;
+  };
+  let mockFileStorageService: {
+    uploadFile: jest.Mock;
+  };
 
   beforeEach(async () => {
     repo = {
       update: jest.fn(),
       findById: jest.fn(),
     };
-    
+
     mockFileStorageService = {
       uploadFile: jest.fn(),
     };
@@ -51,20 +55,26 @@ describe('UsersService', () => {
 
     await service.update('user-1', { kycStatus: 'approved' }, 'user-1');
 
-    const [userId, data] = repo.update.mock.calls[0];
+    const calls = repo.update.mock.calls as [[string, Record<string, unknown>]];
 
-    expect(userId).toBe('user-1');
-    expect(data.kycStatus).toBe('approved');
-    expect(data.kycUpdatedAt).toBeInstanceOf(Date);
+    expect(calls[0][0]).toBe('user-1');
+    expect(calls[0][1].kycStatus).toBe('approved');
+    expect(calls[0][1].kycUpdatedAt).toBeInstanceOf(Date);
   });
 
   it('rejects attempts to update another user resource', async () => {
-    await expect(service.update('user-2', { alias: 'taken' }, 'user-1')).rejects.toThrow();
+    await expect(
+      service.update('user-2', { alias: 'taken' }, 'user-1'),
+    ).rejects.toThrow();
+
     expect(repo.update).not.toHaveBeenCalled();
   });
 
   it('rejects update attempts without an authenticated user id', async () => {
-    await expect(service.update('user-1', { alias: 'new-alias' }, 'different-user-id')).rejects.toThrow();
+    await expect(
+      service.update('user-1', { alias: 'new-alias' }),
+    ).rejects.toThrow();
+
     expect(repo.update).not.toHaveBeenCalled();
   });
 
@@ -77,19 +87,29 @@ describe('UsersService', () => {
         size: 100,
         buffer: Buffer.from('data'),
       };
-      
-      const mockStoredFile = { key: 'path/to/test.jpg', url: 'http://gcs.local/path/to/test.jpg' };
-      mockFileStorageService.uploadFile = jest.fn().mockResolvedValue(mockStoredFile);
-      
+
+      const mockStoredFile = {
+        key: 'path/to/test.jpg',
+        url: 'http://gcs.local/path/to/test.jpg',
+      };
+      mockFileStorageService.uploadFile = jest
+        .fn()
+        .mockResolvedValue(mockStoredFile);
+
       const mockUser = { userId: 'user-1', alias: 'test' };
       repo.findById = jest.fn().mockResolvedValue(mockUser);
-      repo.update = jest.fn().mockResolvedValue({ ...mockUser, profileImageUrl: mockStoredFile.url });
+      repo.update = jest.fn().mockResolvedValue({
+        ...mockUser,
+        profileImageUrl: mockStoredFile.url,
+      });
 
       const result = await service.uploadProfilePicture('user-1', mockFile);
 
       expect(repo.findById).toHaveBeenCalledWith('user-1');
       expect(mockFileStorageService.uploadFile).toHaveBeenCalledWith(mockFile);
-      expect(repo.update).toHaveBeenCalledWith('user-1', { profileImageUrl: mockStoredFile.url });
+      expect(repo.update).toHaveBeenCalledWith('user-1', {
+        profileImageUrl: mockStoredFile.url,
+      });
       expect(result.profileImageUrl).toBe(mockStoredFile.url);
     });
 
@@ -105,7 +125,9 @@ describe('UsersService', () => {
         buffer: Buffer.from('data'),
       };
 
-      await expect(service.uploadProfilePicture('non-existent-id', mockFile)).rejects.toThrow();
+      await expect(
+        service.uploadProfilePicture('non-existent-id', mockFile),
+      ).rejects.toThrow();
       expect(mockFileStorageService.uploadFile).not.toHaveBeenCalled();
     });
 
@@ -117,11 +139,16 @@ describe('UsersService', () => {
         size: 100,
         buffer: Buffer.from('data'),
       };
-      
-      const mockStoredFile = { key: 'mock-path', url: 'http://mock-url.local/mock-path' };
-      mockFileStorageService.uploadFile = jest.fn().mockResolvedValue(mockStoredFile);
+
+      const mockStoredFile = {
+        key: 'mock-path',
+        url: 'http://mock-url.local/mock-path',
+      };
+      mockFileStorageService.uploadFile = jest
+        .fn()
+        .mockResolvedValue(mockStoredFile);
       repo.update = jest.fn();
-      
+
       const result = await service.uploadProfilePicture('user-1', mockFile);
 
       expect(mockFileStorageService.uploadFile).toHaveBeenCalledWith(mockFile);

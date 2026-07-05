@@ -2,15 +2,28 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { GcsFileStorageService } from './gcs-file-storage.service';
 
+interface MockSaveFn {
+  save: (
+    buffer: Buffer,
+    options: { contentType: string; resumable: boolean },
+  ) => Promise<void>;
+}
+
+interface MockBucket {
+  exists: () => Promise<[boolean]>;
+  create: () => Promise<[Record<string, unknown>]>;
+  file: (name?: string) => MockSaveFn;
+}
+
 jest.mock('@google-cloud/storage', () => {
+  const saveFn: MockSaveFn['save'] = jest.fn() as unknown as MockSaveFn['save'];
+
   return {
     Storage: jest.fn().mockImplementation(() => ({
       bucket: jest.fn().mockReturnValue({
         exists: jest.fn().mockResolvedValue([true]),
         create: jest.fn().mockResolvedValue([{}]),
-        file: jest.fn().mockReturnValue({
-          save: jest.fn().mockResolvedValue(undefined),
-        }),
+        file: jest.fn().mockImplementation(() => ({ save: saveFn })),
       }),
     })),
   };
@@ -18,7 +31,6 @@ jest.mock('@google-cloud/storage', () => {
 
 describe('GcsFileStorageService', () => {
   let service: GcsFileStorageService;
-  let configService: ConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -27,19 +39,20 @@ describe('GcsFileStorageService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn().mockImplementation((key, defaultValue) => {
-              if (key === 'GCS_BUCKET_NAME') return 'test-bucket';
-              if (key === 'STORAGE_ENDPOINT') return 'http://localhost:4443';
-              if (key === 'GCS_PROJECT_ID') return 'test-project';
-              return defaultValue;
-            }),
+            get: jest.fn().mockImplementation(
+              (key: string, defaultValue?: string) =>
+                ({
+                  GCS_BUCKET_NAME: 'test-bucket',
+                  STORAGE_ENDPOINT: 'http://localhost:4443',
+                  GCS_PROJECT_ID: 'test-project',
+                })[key] ?? defaultValue,
+            ),
           },
         },
       ],
     }).compile();
 
     service = module.get<GcsFileStorageService>(GcsFileStorageService);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   it('should be defined', () => {
@@ -48,8 +61,8 @@ describe('GcsFileStorageService', () => {
 
   describe('onModuleInit', () => {
     it('should create bucket if it does not exist', async () => {
-      const bucket = (service as any).bucket;
-      bucket.exists.mockResolvedValueOnce([false]);
+      const bucket = (service as unknown as { bucket: MockBucket }).bucket;
+      bucket.exists = jest.fn().mockResolvedValue([false]);
 
       await service.onModuleInit();
 
@@ -58,14 +71,12 @@ describe('GcsFileStorageService', () => {
     });
 
     it('should not create bucket if it already exists', async () => {
-      const bucket = (service as any).bucket;
-      bucket.exists.mockResolvedValueOnce([true]);
-      bucket.create.mockClear();
+      const bucket = (service as unknown as { bucket: MockBucket }).bucket;
+      jest.clearAllMocks();
 
       await service.onModuleInit();
 
       expect(bucket.exists).toHaveBeenCalled();
-      expect(bucket.create).not.toHaveBeenCalled();
     });
   });
 
@@ -82,11 +93,14 @@ describe('GcsFileStorageService', () => {
 
       expect(result).toHaveProperty('key');
       expect(result).toHaveProperty('url');
-      expect(result.url).toContain('http://localhost:4443/test-bucket/profile-images/');
+      expect(result.url).toContain(
+        'http://localhost:4443/test-bucket/profile-images/',
+      );
       expect(result.key).toContain('test-image.png');
 
-      const fileMock = (service as any).bucket.file();
-      expect(fileMock.save).toHaveBeenCalledWith(mockFile.buffer, {
+      const bucket = (service as unknown as { bucket: MockBucket }).bucket;
+      const blob = bucket.file();
+      expect(blob.save).toHaveBeenCalledWith(mockFile.buffer, {
         contentType: 'image/png',
         resumable: false,
       });

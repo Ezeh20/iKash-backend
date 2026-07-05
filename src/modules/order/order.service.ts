@@ -6,6 +6,47 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderRepository } from './order.repository';
 import { EscrowService } from '../escrow/escrow.service';
 import { AppException, ErrorCode } from '../../common/errors';
+import { Order, order_status } from '@prisma/client';
+
+type OrderFilter = {
+  offerId?: string;
+  buyerId?: string;
+  sellerId?: string;
+  userId?: string;
+  status?: string;
+};
+
+type OrderCreateData = {
+  orderId: string;
+  offerId: string;
+  buyerId: string;
+  sellerId: string;
+  assetAmount: string;
+  fiatAmount: string;
+  orderStatus?: string;
+  expiresAt?: Date;
+  escrow: {
+    contractId: string;
+    sellerAddress: string;
+    buyerAddress: string;
+    amount: string;
+  };
+};
+
+export interface OrderCreateResponse extends Order {
+  escrowId?: string | null;
+}
+
+export interface OrderDetailResponse extends OrderCreateResponse {
+  contractId: string;
+  unsignedFundTransaction: string;
+  escrow?: { escrowId: string };
+}
+
+export interface UserStats {
+  totalOrders: number;
+  completedOrders: number;
+}
 
 @Injectable()
 export class OrderService {
@@ -26,7 +67,7 @@ export class OrderService {
    * 4. Return the order data with the unsigned fund XDR so the frontend can
    *    prompt the seller to sign.
    */
-  async create(dto: CreateOrderDto) {
+  async create(dto: CreateOrderDto): Promise<OrderDetailResponse> {
     const orderId = randomUUID();
 
     this.logger.log(
@@ -46,7 +87,7 @@ export class OrderService {
       `Escrow deployed (contract=${contractId}). Persisting order + escrow in DB…`,
     );
 
-    const data: any = {
+    const data: OrderCreateData = {
       orderId,
       offerId: dto.offerId,
       buyerId: dto.buyerId,
@@ -63,7 +104,9 @@ export class OrderService {
       },
     };
 
-    const order = await this.repo.create(data);
+    const order: OrderCreateResponse = (await this.repo.create(
+      data,
+    )) as OrderCreateResponse;
 
     this.logger.log(`Order ${orderId} and escrow persisted successfully.`);
 
@@ -76,20 +119,20 @@ export class OrderService {
     };
   }
 
-  list(p: PaginationDto, q: any) {
-    const where: any = {};
+  list(p: PaginationDto, q: OrderFilter): Promise<Order[]> {
+    const where: Record<string, unknown> = {};
     if (q.offerId) where.offerId = q.offerId;
     if (q.buyerId) where.buyerId = q.buyerId;
     if (q.sellerId) where.sellerId = q.sellerId;
     if (q.userId) {
       where.OR = [{ buyerId: q.userId }, { sellerId: q.userId }];
     }
-    if (q.status) where.orderStatus = q.status;
+    if (q.status) where.orderStatus = q.status as order_status;
 
     return this.repo.search(where, p.skip, p.take);
   }
 
-  async get(id: string) {
+  async get(id: string): Promise<Order> {
     const item = await this.repo.findById(id);
     if (!item) {
       throw new AppException(
@@ -100,17 +143,17 @@ export class OrderService {
     return item;
   }
 
-  update(id: string, dto: UpdateOrderDto) {
-    const data: any = { ...dto };
+  update(id: string, dto: UpdateOrderDto): Promise<Order> {
+    const data: Record<string, unknown> = { ...dto };
     if (dto.expiresAt) data.expiresAt = new Date(dto.expiresAt);
-    return this.repo.update(id, data);
+    return this.repo.update(id, data) as Promise<Order>;
   }
 
-  remove(id: string) {
-    return this.repo.delete(id);
+  remove(id: string): Promise<Order> {
+    return this.repo.delete(id) as Promise<Order>;
   }
 
-  getUserStats(userId: string) {
+  getUserStats(userId: string): Promise<UserStats> {
     return this.repo.getUserStats(userId);
   }
 }

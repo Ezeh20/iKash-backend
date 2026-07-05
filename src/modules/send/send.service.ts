@@ -7,6 +7,29 @@ import { AppException, ErrorCode } from '../../common/errors';
 
 const STROOPS_PER_UNIT = 10_000_000n; // USDC uses 7 decimals
 
+export interface RecipientInfo {
+  address: string;
+  alias: string | null;
+  exists: boolean;
+  hasUsdcTrustline: boolean;
+}
+
+export interface PreparedSend {
+  recipient: { address: string; alias: string | null };
+  asset: string;
+  amount: string;
+  fee: string;
+  total: string;
+  unsignedXdr: string;
+  networkPassphrase: string;
+}
+
+export interface SubmitResult {
+  hash: string;
+  ledger: number;
+  successful: boolean;
+}
+
 @Injectable()
 export class SendService {
   constructor(
@@ -16,7 +39,7 @@ export class SendService {
   ) {}
 
   /** Resolves an alias or address and returns recipient info for confirmation. */
-  async resolveRecipient(recipient: string) {
+  async resolveRecipient(recipient: string): Promise<RecipientInfo> {
     const { address, alias } = await this.resolve(recipient);
 
     let exists = false;
@@ -24,7 +47,7 @@ export class SendService {
     try {
       const balances = await this.stellar.getBalances(address);
       exists = true;
-      hasUsdcTrustline = balances.some((b: any) => b.asset_code === 'USDC');
+      hasUsdcTrustline = balances.some((b) => b.asset_code === 'USDC');
     } catch {
       // loadAccount throws if the account does not exist on the network
       exists = false;
@@ -34,7 +57,11 @@ export class SendService {
   }
 
   /** Validates, calculates the 0.3% fee and builds the unsigned USDC transaction. */
-  async prepare(sourcePublicKey: string, recipient: string, amount: string) {
+  async prepare(
+    sourcePublicKey: string,
+    recipient: string,
+    amount: string,
+  ): Promise<PreparedSend> {
     const { address, alias } = await this.resolve(recipient);
 
     if (address === sourcePublicKey) {
@@ -87,7 +114,7 @@ export class SendService {
   }
 
   /** Submits the transaction already signed by the frontend to Stellar. */
-  async submit(signedXdr: string) {
+  async submit(signedXdr: string): Promise<SubmitResult> {
     return this.stellar.submitSignedXdr(signedXdr);
   }
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { BaseRepository } from '../../common/base.repository';
+import { AppUser } from '@prisma/client';
 
 @Injectable()
 export class UsersRepository extends BaseRepository {
@@ -9,7 +10,7 @@ export class UsersRepository extends BaseRepository {
   }
 
   // ✅ ESTE método existe SOLO aquí, por eso el service debe inyectar UsersRepository
-  findByPublicKey(publicKey: string) {
+  findByPublicKey(publicKey: string): Promise<AppUser | null> {
     return this.prisma.appUser.findUnique({
       where: { publicKey },
       include: {
@@ -22,14 +23,17 @@ export class UsersRepository extends BaseRepository {
     });
   }
 
-  findByAlias(alias: string) {
+  findByAlias(alias: string): Promise<AppUser | null> {
     return this.prisma.appUser.findUnique({ where: { alias } });
   }
 
-  async findOrCreateByPublicKey(publicKey: string) {
+  async findOrCreateByPublicKey(publicKey: string): Promise<AppUser> {
     const existing = await this.findByPublicKey(publicKey);
     if (existing) return existing;
-    return this.create({ publicKey, pendingAccountInfo: true });
+    return this.create({
+      publicKey,
+      pendingAccountInfo: true,
+    }) as Promise<AppUser>;
   }
 
   async isAliasAvailable(alias: string): Promise<boolean> {

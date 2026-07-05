@@ -71,7 +71,9 @@ export class EscrowController {
 
   /** Upload evidence file (receipt) for an escrow */
   @Post(':id/evidence')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }),
+  )
   uploadEvidence(
     @Param('id') id: string,
     @UploadedFile() file?: UploadFileInput,

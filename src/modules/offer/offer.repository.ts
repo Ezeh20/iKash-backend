@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../../common/base.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { Offer } from '@prisma/client';
 
 @Injectable()
 export class OfferRepository extends BaseRepository {
@@ -8,10 +9,14 @@ export class OfferRepository extends BaseRepository {
     super(prisma.offer, 'offerId');
   }
 
-  async create(data: any) {
-    const { paymentMethodIds, ...offerData } = data;
+  async create(data: Record<string, unknown>): Promise<Offer> {
+    const { paymentMethodIds, ...offerData } = data as {
+      paymentMethodIds?: string[];
+      [key: string]: unknown;
+    };
 
-    const connectPaymentMethods: any = {};
+    const connectPaymentMethods: { connect?: Array<{ paymentId: string }> } =
+      {};
 
     if (paymentMethodIds && paymentMethodIds.length > 0) {
       const v2Methods = await this.prisma.paymentMethod.findMany({
@@ -19,9 +24,11 @@ export class OfferRepository extends BaseRepository {
         select: { paymentId: true },
       });
       if (v2Methods.length > 0) {
-        connectPaymentMethods.connect = v2Methods.map((m) => ({
-          paymentId: m.paymentId,
-        }));
+        connectPaymentMethods.connect = v2Methods.map(
+          (m: { paymentId: string }) => ({
+            paymentId: m.paymentId,
+          }),
+        );
       }
     }
 
@@ -31,7 +38,7 @@ export class OfferRepository extends BaseRepository {
         payment_methods: connectPaymentMethods.connect
           ? connectPaymentMethods
           : undefined,
-      },
+      } as never,
       include: {
         payment_methods: {
           include: { payment_provider: true },
@@ -40,7 +47,7 @@ export class OfferRepository extends BaseRepository {
     });
   }
 
-  findById(offerId: string) {
+  findById(offerId: string): Promise<Offer | null> {
     return this.prisma.offer.findUnique({
       where: { offerId },
       include: {
@@ -51,7 +58,11 @@ export class OfferRepository extends BaseRepository {
     });
   }
 
-  search(where: any, skip = 0, take = 20) {
+  search(
+    where: Record<string, unknown>,
+    skip = 0,
+    take = 20,
+  ): Promise<Offer[]> {
     return this.prisma.offer.findMany({
       where,
       skip,
