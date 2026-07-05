@@ -19,14 +19,18 @@ export class OfferRepository extends BaseRepository {
         select: { paymentId: true },
       });
       if (v2Methods.length > 0) {
-        connectPaymentMethods.connect = v2Methods.map(m => ({ paymentId: m.paymentId }));
+        connectPaymentMethods.connect = v2Methods.map((m) => ({
+          paymentId: m.paymentId,
+        }));
       }
     }
 
     return this.prisma.offer.create({
       data: {
         ...offerData,
-        payment_methods: connectPaymentMethods.connect ? connectPaymentMethods : undefined,
+        payment_methods: connectPaymentMethods.connect
+          ? connectPaymentMethods
+          : undefined,
       },
       include: {
         payment_methods: {

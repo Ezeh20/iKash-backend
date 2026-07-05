@@ -1,4 +1,11 @@
-import { IsArray, IsIn, IsNumberString, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsNumberString,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export class CreateOfferDto {
   @IsUUID()

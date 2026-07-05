@@ -164,7 +164,9 @@ export class EscrowService {
     this.validateAssetCode(dto.assetCode);
 
     const treasury = this.config.getOrThrow<string>('IKASH_TREASURY_ADDRESS');
-    const deployerSecret = this.config.getOrThrow<string>('IKASH_DEPLOYER_SECRET');
+    const deployerSecret = this.config.getOrThrow<string>(
+      'IKASH_DEPLOYER_SECRET',
+    );
     const platformFee = Number(
       this.config.get<string>('IKASH_PLATFORM_FEE', '1'),
     );
@@ -388,7 +390,9 @@ export class EscrowService {
         `Auto-approving milestone for escrow ${dto.escrowId} before release…`,
       );
       const treasury = this.config.getOrThrow<string>('IKASH_TREASURY_ADDRESS');
-      const treasurySecret = this.config.getOrThrow<string>('IKASH_DEPLOYER_SECRET');
+      const treasurySecret = this.config.getOrThrow<string>(
+        'IKASH_DEPLOYER_SECRET',
+      );
 
       const approveXdr = await this.tw.approveMilestone({
         contractId: escrow.contractId,
@@ -512,7 +516,11 @@ export class EscrowService {
 
   list(p: PaginationDto, orderId?: string) {
     if (orderId) {
-      return this.repo.findMany({ skip: p.skip, take: p.take, where: { orderId } });
+      return this.repo.findMany({
+        skip: p.skip,
+        take: p.take,
+        where: { orderId },
+      });
     }
     return this.repo.findMany({ skip: p.skip, take: p.take });
   }
@@ -520,7 +528,10 @@ export class EscrowService {
   async get(id: string) {
     const item = await this.repo.findById(id);
     if (!item) {
-      throw new AppException(ErrorCode.ESCROW_NOT_FOUND, `Escrow ${id} not found`);
+      throw new AppException(
+        ErrorCode.ESCROW_NOT_FOUND,
+        `Escrow ${id} not found`,
+      );
     }
     return item;
   }
