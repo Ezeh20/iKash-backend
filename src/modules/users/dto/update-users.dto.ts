@@ -19,6 +19,11 @@ export class UpdateUserDto {
   alias?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  username?: string;
+
+  @IsOptional()
   @IsEmail()
   email?: string;
 

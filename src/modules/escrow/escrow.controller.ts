@@ -7,13 +7,17 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { PaginationDto } from '../../common/pagination.dto';
 import { CreateEscrowDto } from './dto/create-escrow.dto';
 import { UpdateEscrowDto } from './dto/update-escrow.dto';
 import { OpenEscrowDto } from './dto/open-escrow.dto';
 import { InitializeEscrowDto } from './dto/initialize-escrow.dto';
 import { FundEscrowDto } from './dto/fund-escrow.dto';
+import type { UploadFileInput } from '../file-storage/file-storage.service';
 import { FiatSentDto } from './dto/fiat-sent.dto';
 import { ReleaseEscrowDto } from './dto/release-escrow.dto';
 import { SyncEscrowDto } from './dto/sync-escrow.dto';
@@ -63,6 +67,16 @@ export class EscrowController {
   @Post(':id/fiat-sent')
   markFiatSent(@Param('id') id: string, @Body() dto: FiatSentDto) {
     return this.service.markFiatSent(id, dto);
+  }
+
+  /** Upload evidence file (receipt) for an escrow */
+  @Post(':id/evidence')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadEvidence(
+    @Param('id') id: string,
+    @UploadedFile() file?: UploadFileInput,
+  ) {
+    return this.service.uploadEvidence(id, file);
   }
 
   /** Get escrow status with live on-chain data */

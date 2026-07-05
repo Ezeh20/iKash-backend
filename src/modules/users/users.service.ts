@@ -6,7 +6,10 @@ import { UsersRepository } from './users.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SetupAccountDto } from './dto/setup-account.dto';
 import { AuthService } from '../auth/auth.service';
-import { FileStorageService } from './file-storage/file-storage.service';
+import {
+  FileStorageService,
+  UploadFileInput,
+} from '../file-storage/file-storage.service';
 import { AppException, ErrorCode } from '../../common/errors';
 
 @Injectable()
@@ -118,6 +121,10 @@ export class UsersService {
     });
   }
 
+  async findByPublicKey(publicKey: string) {
+    return this.repo.findByPublicKey(publicKey);
+  }
+
   async get(id: string) {
     const item = await this.repo.findById(id);
     if (!item) {
@@ -160,11 +167,7 @@ export class UsersService {
 
   async uploadProfilePicture(
     id: string,
-    file: {
-      originalname: string;
-      mimetype: string;
-      size: number;
-    },
+    file: UploadFileInput,
     userSnapshot?: Record<string, unknown>,
   ) {
     if (process.env.MOCK_PROFILE_UPLOAD === 'true') {

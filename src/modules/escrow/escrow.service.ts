@@ -36,6 +36,7 @@ import {
   Trustline,
 } from './trustless-work.types';
 import { AppException, ErrorCode } from '../../common/errors';
+import { FileStorageService, UploadFileInput } from '../file-storage/file-storage.service';
 
 @Injectable()
 export class EscrowService {
@@ -45,6 +46,7 @@ export class EscrowService {
     private readonly repo: EscrowRepository,
     private readonly tw: TrustlessWorkService,
     private readonly config: ConfigService,
+    private readonly fileStorage: FileStorageService,
   ) {}
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -361,6 +363,36 @@ export class EscrowService {
       escrowId: escrow.escrowId,
       unsignedTransaction: result.unsignedTransaction,
     };
+  }
+
+  async uploadEvidence(id: string, file?: UploadFileInput) {
+    if (!file || !file.buffer) {
+      throw new AppException(ErrorCode.VALIDATION_ERROR, 'Evidence file is required');
+    }
+
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new AppException(
+        ErrorCode.VALIDATION_ERROR,
+        `Invalid file type "${file.mimetype}". Allowed: ${allowedMimes.join(', ')}`,
+      );
+    }
+
+    const escrow = await this.getOrFail(id);
+    const ext = file.originalname.split('.').pop() || 'jpg';
+    const key = `evidence/${escrow.escrowId}/${Date.now()}.${ext}`;
+
+    const result = await this.fileStorage.uploadFile({
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      buffer: file.buffer,
+      size: file.size,
+      key,
+    });
+
+    await this.repo.update(id, { evidenceUrl: result.url });
+
+    return { url: result.url };
   }
 
   async release(dto: ReleaseEscrowDto) {

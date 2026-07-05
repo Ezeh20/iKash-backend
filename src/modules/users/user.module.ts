@@ -3,20 +3,12 @@ import { UsersController } from './users.controller';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 import { AuthModule } from '../auth/auth.module';
-import { FileStorageService } from './file-storage/file-storage.service';
-import { MockFileStorageService } from './file-storage/mock-file-storage.service';
+import { FileStorageModule } from '../file-storage/file-storage.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, FileStorageModule],
   controllers: [UsersController],
-  providers: [
-    UsersService,
-    UsersRepository,
-    {
-      provide: FileStorageService,
-      useClass: MockFileStorageService,
-    },
-  ],
+  providers: [UsersService, UsersRepository],
   exports: [UsersService, UsersRepository],
 })
 export class UsersModule {}

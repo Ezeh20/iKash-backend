@@ -11,6 +11,11 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(80)
+  username?: string;
+
+  @IsOptional()
+  @IsString()
   kycStatus?: 'pending' | 'approved' | 'rejected';
 
   @IsOptional()

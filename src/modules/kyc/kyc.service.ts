@@ -39,7 +39,8 @@ export class KycService {
         body: JSON.stringify({
           vendor_data: userId,
           workflow_id: this.diditWorkflowId,
-          callback: 'http://localhost:3001/dashboard',
+          callback:
+            process.env.KYC_CALLBACK_URL || 'http://localhost:3001/dashboard',
         }),
       });
 

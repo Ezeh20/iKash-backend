@@ -1,0 +1,11 @@
+services:
+  storage:
+    image: fsouza/fake-gcs-server:latest
+    ports:
+      - "4443:4443"
+    volumes:
+      - ./storage-data:/data
+    command:
+      - -scheme=http
+      - -port=4443
+      - -public-host=localhost:4443
