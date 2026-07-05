@@ -18,7 +18,7 @@ COPY prisma ./prisma
 COPY src ./src
 
 # Generar cliente de Prisma y compilar NestJS
-RUN npx prisma generate
+RUN pnpm prisma generate
 RUN pnpm run build
 
 # --- ETAPA DE PRODUCCIÓN ---
@@ -40,11 +40,11 @@ RUN pnpm install --prod
 COPY --from=builder /usr/src/app/prisma ./prisma
 COPY --from=builder /usr/src/app/dist ./dist
 
-# 💡 SOLUCIÓN AQUÍ: Volver a generar el cliente dentro del node_modules limpio de producción
-RUN npx prisma generate
+# Volver a generar el cliente dentro del node_modules limpio de producci├│n
+RUN pnpm prisma generate
 
 # Cloud Run inyecta el puerto 8080 automáticamente
 EXPOSE 8080
 
 # Aplica migraciones pendientes antes de iniciar la app
-CMD npx prisma migrate deploy && node dist/src/main.js
+CMD pnpm prisma migrate deploy && node dist/src/main.js
