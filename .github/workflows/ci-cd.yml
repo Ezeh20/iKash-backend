@@ -98,8 +98,8 @@ jobs:
             --platform managed \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --set-env-vars "DIDIT_API_URL=https://verification.didit.me/v3,STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org,STELLAR_NETWORK=testnet,TRUSTLESS_WORK_API_URL=https://dev.api.trustlesswork.com,TRUSTLESS_WORK_USDC_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5,IKASH_PLATFORM_FEE=1,KYC_CALLBACK_URL={{ vars.KYC_CALLBACK_URL }},STORAGE_PROVIDER=gcs,GCS_BUCKET_NAME={{ secrets.GCS_BUCKET_NAME }},GCS_PROJECT_ID=${{ env.PROJECT_ID }},STORAGE_ENDPOINT=" \
+            --set-env-vars "DIDIT_API_URL=https://verification.didit.me/v3,STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org,STELLAR_NETWORK=testnet,TRUSTLESS_WORK_API_URL=https://dev.api.trustlesswork.com,TRUSTLESS_WORK_USDC_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5,IKASH_PLATFORM_FEE=1,KYC_CALLBACK_URL=${{ vars.KYC_CALLBACK_URL }},STORAGE_PROVIDER=gcs,GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }},GCS_PROJECT_ID=${{ env.PROJECT_ID }},STORAGE_ENDPOINT=" \
             --set-secrets "DIDIT_API_KEY=DIDIT_API_KEY:latest,DIDIT_WEBHOOK_SECRET=DIDIT_WEBHOOK_SECRET:latest,DIDIT_WORKFLOW_ID=DIDIT_WORKFLOW_ID:latest,STELLAR_SIGNER_SECRET=STELLAR_SIGNER_SECRET:latest,DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest,TRUSTLESS_WORK_API_KEY=TRUSTLESS_WORK_API_KEY:latest,IKASH_TREASURY_ADDRESS=IKASH_TREASURY_ADDRESS:latest,IKASH_SUPPORT_ADDRESS=IKASH_SUPPORT_ADDRESS:latest,IKASH_DEPLOYER_SECRET=IKASH_DEPLOYER_SECRET:latest" \
-            --service-account="{{ secrets.GCP_AUTH_SA }}" \
+            --service-account="${{ secrets.GCP_AUTH_SA }}" \
             --timeout 300 \
             --cpu 2
