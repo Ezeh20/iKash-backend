@@ -9,7 +9,7 @@ import { AuthService } from '../auth/auth.service';
 import {
   FileStorageService,
   UploadFileInput,
-} from './file-storage/file-storage.service';
+} from '../file-storage/file-storage.service';
 import { AppException, ErrorCode } from '../../common/errors';
 
 @Injectable()

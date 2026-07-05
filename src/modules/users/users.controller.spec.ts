@@ -3,7 +3,7 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { UploadFileInput } from './file-storage/file-storage.service';
+import { UploadFileInput } from '../file-storage/file-storage.service';
 
 describe('UsersController', () => {
   let controller: UsersController;

@@ -48,12 +48,11 @@ describe('GcsFileStorageService', () => {
 
   describe('onModuleInit', () => {
     it('should create bucket if it does not exist', async () => {
-      // Access the mocked bucket instance
       const bucket = (service as any).bucket;
       bucket.exists.mockResolvedValueOnce([false]);
-      
+
       await service.onModuleInit();
-      
+
       expect(bucket.exists).toHaveBeenCalled();
       expect(bucket.create).toHaveBeenCalled();
     });
@@ -62,9 +61,9 @@ describe('GcsFileStorageService', () => {
       const bucket = (service as any).bucket;
       bucket.exists.mockResolvedValueOnce([true]);
       bucket.create.mockClear();
-      
+
       await service.onModuleInit();
-      
+
       expect(bucket.exists).toHaveBeenCalled();
       expect(bucket.create).not.toHaveBeenCalled();
     });
@@ -85,7 +84,7 @@ describe('GcsFileStorageService', () => {
       expect(result).toHaveProperty('url');
       expect(result.url).toContain('http://localhost:4443/test-bucket/profile-images/');
       expect(result.key).toContain('test-image.png');
-      
+
       const fileMock = (service as any).bucket.file();
       expect(fileMock.save).toHaveBeenCalledWith(mockFile.buffer, {
         contentType: 'image/png',
@@ -102,7 +101,7 @@ describe('GcsFileStorageService', () => {
       };
 
       const result = await service.uploadFile(mockFile);
-      expect(result.key).toContain('my-test-image-.jpg'); // Safename logic check
+      expect(result.key).toContain('my-test-image-.jpg');
     });
   });
 });

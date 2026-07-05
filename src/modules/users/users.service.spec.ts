@@ -4,7 +4,7 @@ import { AuthService } from '../auth/auth.service';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { FileStorageService } from './file-storage/file-storage.service';
+import { FileStorageService } from '../file-storage/file-storage.service';
 
 describe('UsersService', () => {
   let service: UsersService;

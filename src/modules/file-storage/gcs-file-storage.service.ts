@@ -60,14 +60,18 @@ export class GcsFileStorageService
   }
 
   async uploadFile(file: UploadFileInput): Promise<StoredFile> {
-    const safeName = file.originalname
-      .toLowerCase()
-      .replace(/[^a-z0-9.-]+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-    const timestamp = Date.now();
-    const random = crypto.randomBytes(4).toString('hex');
-    const key = `profile-images/${timestamp}-${random}-${safeName || 'upload'}`;
+    const key =
+      file.key ??
+      (() => {
+        const safeName = file.originalname
+          .toLowerCase()
+          .replace(/[^a-z0-9.-]+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
+        const timestamp = Date.now();
+        const random = crypto.randomBytes(4).toString('hex');
+        return `profile-images/${timestamp}-${random}-${safeName || 'upload'}`;
+      })();
 
     const blob = this.bucket.file(key);
 

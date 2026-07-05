@@ -8,6 +8,7 @@ export interface UploadFileInput {
   mimetype: string;
   buffer: Buffer;
   size: number;
+  key?: string;
 }
 
 export abstract class FileStorageService {

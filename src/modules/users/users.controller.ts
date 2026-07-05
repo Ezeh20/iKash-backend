@@ -24,7 +24,7 @@ import { SetupAccountDto } from './dto/setup-account.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
-import type { UploadFileInput } from './file-storage/file-storage.service';
+import type { UploadFileInput } from '../file-storage/file-storage.service';
 
 @Controller('users')
 export class UsersController {
