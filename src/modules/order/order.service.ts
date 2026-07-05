@@ -92,7 +92,10 @@ export class OrderService {
   async get(id: string) {
     const item = await this.repo.findById(id);
     if (!item) {
-      throw new AppException(ErrorCode.ORDER_NOT_FOUND, `Order ${id} not found`);
+      throw new AppException(
+        ErrorCode.ORDER_NOT_FOUND,
+        `Order ${id} not found`,
+      );
     }
     return item;
   }

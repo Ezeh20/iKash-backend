@@ -1,4 +1,10 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class SetupAccountDto {
   // Stage 1
@@ -6,6 +12,11 @@ export class SetupAccountDto {
   @IsString()
   @MaxLength(80)
   alias?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  username?: string;
 
   @IsOptional()
   @IsEmail()

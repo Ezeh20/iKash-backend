@@ -65,13 +65,15 @@ export class SendService {
     const feeAmount = this.fromStroops(feeStroops);
     const total = this.fromStroops(amountStroops + feeStroops);
 
-    const { xdr, networkPassphrase } = await this.stellar.buildUnsignedUsdcSend({
-      sourcePublicKey,
-      destination: address,
-      amount: normalizedAmount,
-      feeAddress,
-      feeAmount,
-    });
+    const { xdr, networkPassphrase } = await this.stellar.buildUnsignedUsdcSend(
+      {
+        sourcePublicKey,
+        destination: address,
+        amount: normalizedAmount,
+        feeAddress,
+        feeAmount,
+      },
+    );
 
     return {
       recipient: { address, alias },

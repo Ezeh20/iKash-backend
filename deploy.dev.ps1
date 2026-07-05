@@ -52,7 +52,7 @@ if ($imageExists -and $forceRebuild -eq $false) {
     gcloud auth configure-docker $registryUrl --quiet
 
     # Build de la imagen Docker
-    docker build -t $imageName .
+    $env:DOCKER_BUILDKIT = "0"; docker build -t $imageName .
     if ($LASTEXITCODE -ne 0) { throw "Error al compilar la imagen Docker." }
 
     # Push de la imagen Docker
@@ -72,7 +72,8 @@ $envVars = @(
     "STELLAR_NETWORK=testnet",
     "TRUSTLESS_WORK_API_URL=https://dev.api.trustlesswork.com",
     "TRUSTLESS_WORK_USDC_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-    "IKASH_PLATFORM_FEE=1"
+    "IKASH_PLATFORM_FEE=1",
+    "KYC_CALLBACK_URL=https://ikash-frontend-dev-977686155876.us-central1.run.app/dashboard"
 ) -join ","
 
 $secretVars = @(

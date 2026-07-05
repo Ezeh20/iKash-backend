@@ -6,7 +6,10 @@ import { UsersRepository } from './users.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SetupAccountDto } from './dto/setup-account.dto';
 import { AuthService } from '../auth/auth.service';
-import { FileStorageService } from './file-storage/file-storage.service';
+import {
+  FileStorageService,
+  UploadFileInput,
+} from './file-storage/file-storage.service';
 import { AppException, ErrorCode } from '../../common/errors';
 
 @Injectable()
@@ -118,6 +121,10 @@ export class UsersService {
     });
   }
 
+  async findByPublicKey(publicKey: string) {
+    return this.repo.findByPublicKey(publicKey);
+  }
+
   async get(id: string) {
     const item = await this.repo.findById(id);
     if (!item) {
@@ -137,12 +144,18 @@ export class UsersService {
     if (dto.alias) {
       const user = await this.repo.findById(id);
       if (!user) {
-        throw new AppException(ErrorCode.USER_NOT_FOUND, `User ${id} not found`);
+        throw new AppException(
+          ErrorCode.USER_NOT_FOUND,
+          `User ${id} not found`,
+        );
       }
       if (user.alias !== dto.alias) {
         const isAvailable = await this.repo.isAliasAvailable(dto.alias);
         if (!isAvailable) {
-          throw new AppException(ErrorCode.ALIAS_TAKEN, 'Alias is already taken');
+          throw new AppException(
+            ErrorCode.ALIAS_TAKEN,
+            'Alias is already taken',
+          );
         }
       }
     }
@@ -152,11 +165,11 @@ export class UsersService {
     return this.repo.update(id, data);
   }
 
-  async uploadProfilePicture(id: string, file: {
-    originalname: string;
-    mimetype: string;
-    size: number;
-  }, userSnapshot?: Record<string, unknown>) {
+  async uploadProfilePicture(
+    id: string,
+    file: UploadFileInput,
+    userSnapshot?: Record<string, unknown>,
+  ) {
     if (process.env.MOCK_PROFILE_UPLOAD === 'true') {
       const uploadedFile = await this.fileStorageService.uploadFile(file);
       return {

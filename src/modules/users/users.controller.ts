@@ -24,6 +24,7 @@ import { SetupAccountDto } from './dto/setup-account.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
+import type { UploadFileInput } from './file-storage/file-storage.service';
 
 @Controller('users')
 export class UsersController {
@@ -91,19 +92,29 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id/profile-picture')
-  @UseInterceptors(FileInterceptor('profileImage'))
-  uploadProfilePicture(
+  @UseInterceptors(
+    FileInterceptor('profileImage', { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  async uploadProfilePicture(
     @Param('id') id: string,
-    @Req() req: Request & { user: { userId: string } },
+    @Req() req: Request & { user: { userId: string; publicKey: string } },
     @Body('userSnapshot') userSnapshot?: string,
-    @UploadedFile() file?: {
-      originalname: string;
-      mimetype: string;
-      size: number;
-    },
+    @UploadedFile() file?: UploadFileInput,
   ) {
     if (req.user?.userId !== id) {
-      throw new ForbiddenException('You can only upload a profile picture for your own account');
+      if (!req.user?.publicKey) {
+        throw new ForbiddenException(
+          'You can only upload a profile picture for your own account',
+        );
+      }
+      const userByPublicKey = await this.service.findByPublicKey(
+        req.user.publicKey,
+      );
+      if (!userByPublicKey || userByPublicKey.userId !== id) {
+        throw new ForbiddenException(
+          'You can only upload a profile picture for your own account',
+        );
+      }
     }
 
     if (!file) {
@@ -112,7 +123,9 @@ export class UsersController {
 
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException('Only JPEG, PNG, and WEBP images are allowed');
+      throw new BadRequestException(
+        'Only JPEG, PNG, and WEBP images are allowed',
+      );
     }
 
     const maxFileSize = 5 * 1024 * 1024;

@@ -12,6 +12,7 @@ model AppUser {
   userId               String           @id @default(dbgenerated("gen_random_uuid()")) @map("user_id") @db.Uuid
   publicKey            String           @unique @map("public_key")
   alias                String?          @unique @map("alias")
+  username             String?          @map("username")
   kycStatus            kyc_status       @default(pending) @map("kyc_status")
   kycUpdatedAt         DateTime?        @map("kyc_updated_at") @db.Timestamptz(6)
   totalVolume          Decimal          @default(0) @map("total_volume") @db.Decimal(20, 7)

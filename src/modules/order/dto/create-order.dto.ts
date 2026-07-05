@@ -1,4 +1,11 @@
-import { IsIn, IsNotEmpty, IsNumberString, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsNumberString,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export class CreateOrderDto {
   @IsUUID()
@@ -18,7 +25,13 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsIn(['created', 'locked', 'released', 'cancelled', 'expired', 'disputed'])
-  orderStatus?: 'created' | 'locked' | 'released' | 'cancelled' | 'expired' | 'disputed';
+  orderStatus?:
+    | 'created'
+    | 'locked'
+    | 'released'
+    | 'cancelled'
+    | 'expired'
+    | 'disputed';
 
   @IsOptional()
   expiresAt?: string; // ISO string

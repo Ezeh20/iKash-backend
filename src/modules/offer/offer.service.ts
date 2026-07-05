@@ -26,7 +26,10 @@ export class OfferService {
   async get(id: string) {
     const item = await this.repo.findById(id);
     if (!item) {
-      throw new AppException(ErrorCode.OFFER_NOT_FOUND, `Offer ${id} not found`);
+      throw new AppException(
+        ErrorCode.OFFER_NOT_FOUND,
+        `Offer ${id} not found`,
+      );
     }
     return item;
   }

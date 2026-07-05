@@ -39,7 +39,8 @@ export class KycService {
         body: JSON.stringify({
           vendor_data: userId,
           workflow_id: this.diditWorkflowId,
-          callback: 'http://localhost:3001/dashboard',
+          callback:
+            process.env.KYC_CALLBACK_URL || 'http://localhost:3001/dashboard',
         }),
       });
 
@@ -107,8 +108,10 @@ export class KycService {
 
     let kycStatus: any = 'pending';
     if (statusLower === 'approved') kycStatus = 'approved';
-    else if (statusLower === 'declined' || statusLower === 'rejected') kycStatus = 'rejected';
-    else if (statusLower === 'review' || statusLower === 'in_review') kycStatus = 'in_review';
+    else if (statusLower === 'declined' || statusLower === 'rejected')
+      kycStatus = 'rejected';
+    else if (statusLower === 'review' || statusLower === 'in_review')
+      kycStatus = 'in_review';
     else if (statusLower === 'expired') kycStatus = 'expired';
     else if (statusLower === 'kyc_expired') kycStatus = 'kyc_expired';
     else if (statusLower === 'abandoned') kycStatus = 'abandoned';
