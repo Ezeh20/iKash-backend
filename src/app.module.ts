@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PaymentProvidersModule } from './modules/payment-providers/payment-providers.module';
 import { SendModule } from './modules/send/send.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { AuditLogModule } from './modules/audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { StatsModule } from './modules/stats/stats.module';
     PaymentProvidersModule,
     SendModule,
     StatsModule,
+    AuditLogModule,
   ],
 })
 export class AppModule {}

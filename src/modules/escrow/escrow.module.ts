@@ -5,9 +5,9 @@ import { EscrowRepository } from './escrow.repository';
 import { EscrowService } from './escrow.service';
 import { TrustlessWorkService } from './trustless-work.service';
 import { FileStorageModule } from '../file-storage/file-storage.module';
-
+import { AuditLogModule } from '../audit-log/audit-log.module';
 @Module({
-  imports: [ConfigModule, FileStorageModule],
+  imports: [AuditLogModule],
   controllers: [EscrowController],
   providers: [EscrowService, EscrowRepository, TrustlessWorkService],
   exports: [EscrowService],

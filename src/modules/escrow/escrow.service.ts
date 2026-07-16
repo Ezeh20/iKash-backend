@@ -41,6 +41,11 @@ import {
   FileStorageService,
   UploadFileInput,
 } from '../file-storage/file-storage.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import {
+  AuditAction,
+  AuditResult,
+} from '../audit-log/enums/audit-action.enum';
 
 @Injectable()
 export class EscrowService {
@@ -51,6 +56,7 @@ export class EscrowService {
     private readonly tw: TrustlessWorkService,
     private readonly config: ConfigService,
     private readonly fileStorage: FileStorageService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -239,6 +245,7 @@ export class EscrowService {
       await this.deployEscrowToChain(dto.orderId, dto);
 
     let escrow = existing;
+    const isNewEscrow = !escrow;
     if (!escrow) {
       escrow = (await this.repo.create({
         orderId: dto.orderId,
@@ -252,6 +259,16 @@ export class EscrowService {
       contractId,
       escrowStatus: 'initialized',
     });
+
+    if (isNewEscrow) {
+      await this.auditLogService.create({
+        action: AuditAction.ESCROW_CREATED,
+        resourceType: 'Escrow',
+        resourceId: escrow.escrowId,
+        result: AuditResult.SUCCESS,
+        metadata: { orderId: dto.orderId, contractId },
+      });
+    }
 
     return {
       escrowId: escrow.escrowId,
@@ -293,8 +310,8 @@ export class EscrowService {
     };
 
     const result = await this.tw.initializeEscrow(payload);
-
     let escrow = await this.repo.findByOrder(dto.orderId);
+    const isNewEscrow = !escrow;
     if (!escrow) {
       escrow = (await this.repo.create({
         orderId: dto.orderId,
@@ -311,6 +328,15 @@ export class EscrowService {
       });
     }
 
+    if (isNewEscrow) {
+      await this.auditLogService.create({
+        action: AuditAction.ESCROW_CREATED,
+        resourceType: 'Escrow',
+        resourceId: escrow.escrowId,
+        result: AuditResult.SUCCESS,
+        metadata: { orderId: dto.orderId },
+      });
+    }
     return {
       escrowId: escrow?.escrowId,
       unsignedTransaction: result.unsignedTransaction,

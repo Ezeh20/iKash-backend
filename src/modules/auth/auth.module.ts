@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { AuthController } from './auth.controller';
-
 @Module({
   imports: [
     PassportModule,
@@ -12,6 +12,7 @@ import { AuthController } from './auth.controller';
       secret: process.env.JWT_SECRET || 'super-secret-key',
       signOptions: { expiresIn: '1h' },
     }),
+    AuditLogModule,
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],
