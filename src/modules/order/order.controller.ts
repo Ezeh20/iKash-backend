@@ -15,6 +15,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderService } from './order.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { KycVerifiedGuard } from '../../common/kyc-verified.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('orders')
 export class OrderController {
@@ -34,6 +35,18 @@ export class OrderController {
   @Get('user-stats/:userId')
   getUserStats(@Param('userId') userId: string) {
     return this.service.getUserStats(userId);
+  }
+
+  // Intentionally guarded with JwtAuthGuard only, not KycVerifiedGuard:
+  // cancelling an order the user is already in does not move new funds,
+  // so it must not be blocked behind KYC completion.
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard)
+  cancel(
+    @Param('id') id: string,
+    @CurrentUser() user: { userId: string; publicKey: string },
+  ) {
+    return this.service.cancel(id, user.userId);
   }
 
   @Get(':id')
