@@ -48,7 +48,7 @@ export class EscrowService {
 
   constructor(
     private readonly repo: EscrowRepository,
-    private readonly tw: TrustlessWorkService,
+    public readonly tw: TrustlessWorkService,
     private readonly config: ConfigService,
     private readonly fileStorage: FileStorageService,
   ) {}
