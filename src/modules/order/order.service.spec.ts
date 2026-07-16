@@ -66,13 +66,24 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       expiresAt: new Date(Date.now() - 10000),
       buyerId: 'buyer-1',
       sellerId: 'seller-1',
-      buyer: { alias: 'buyer-alias', publicKey: 'G_BUYER', email: 'buyer@example.com' },
-      seller: { alias: 'seller-alias', publicKey: 'G_SELLER', email: 'seller@example.com' },
+      buyer: {
+        alias: 'buyer-alias',
+        publicKey: 'G_BUYER',
+        email: 'buyer@example.com',
+      },
+      seller: {
+        alias: 'seller-alias',
+        publicKey: 'G_SELLER',
+        email: 'seller@example.com',
+      },
       escrow: null,
     };
 
     prismaMock.order.findMany.mockResolvedValue([expiredOrder]);
-    prismaMock.order.update.mockResolvedValue({ ...expiredOrder, orderStatus: 'expired' });
+    prismaMock.order.update.mockResolvedValue({
+      ...expiredOrder,
+      orderStatus: 'expired',
+    });
 
     await service.expireOrders();
 
@@ -89,8 +100,16 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       expiresAt: new Date(Date.now() - 10000),
       buyerId: 'buyer-1',
       sellerId: 'seller-1',
-      buyer: { alias: 'buyer-alias', publicKey: 'G_BUYER', email: 'buyer@example.com' },
-      seller: { alias: 'seller-alias', publicKey: 'G_SELLER', email: 'seller@example.com' },
+      buyer: {
+        alias: 'buyer-alias',
+        publicKey: 'G_BUYER',
+        email: 'buyer@example.com',
+      },
+      seller: {
+        alias: 'seller-alias',
+        publicKey: 'G_SELLER',
+        email: 'seller@example.com',
+      },
       escrow: {
         escrowId: 'escrow-2',
         contractId: 'C_CONTRACT_2',
@@ -102,11 +121,16 @@ describe('OrderService - Expiration and Cancellation Job', () => {
     escrowServiceMock.tw.getEscrowBalance.mockResolvedValue([
       { address: 'C_CONTRACT_2', balance: 0 },
     ]);
-    prismaMock.order.update.mockResolvedValue({ ...expiredOrder, orderStatus: 'cancelled' });
+    prismaMock.order.update.mockResolvedValue({
+      ...expiredOrder,
+      orderStatus: 'cancelled',
+    });
 
     await service.expireOrders();
 
-    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith('C_CONTRACT_2');
+    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith(
+      'C_CONTRACT_2',
+    );
     expect(prismaMock.order.update).toHaveBeenCalledWith({
       where: { orderId: 'order-2' },
       data: { orderStatus: 'cancelled' },
@@ -120,8 +144,16 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       expiresAt: new Date(Date.now() - 10000),
       buyerId: 'buyer-1',
       sellerId: 'seller-1',
-      buyer: { alias: 'buyer-alias', publicKey: 'G_BUYER', email: 'buyer@example.com' },
-      seller: { alias: 'seller-alias', publicKey: 'G_SELLER', email: 'seller@example.com' },
+      buyer: {
+        alias: 'buyer-alias',
+        publicKey: 'G_BUYER',
+        email: 'buyer@example.com',
+      },
+      seller: {
+        alias: 'seller-alias',
+        publicKey: 'G_SELLER',
+        email: 'seller@example.com',
+      },
       escrow: {
         escrowId: 'escrow-3',
         contractId: 'C_CONTRACT_3',
@@ -144,8 +176,16 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       expiresAt: new Date(Date.now() - 10000),
       buyerId: 'buyer-1',
       sellerId: 'seller-1',
-      buyer: { alias: 'buyer-alias', publicKey: 'G_BUYER', email: 'buyer@example.com' },
-      seller: { alias: 'seller-alias', publicKey: 'G_SELLER', email: 'seller@example.com' },
+      buyer: {
+        alias: 'buyer-alias',
+        publicKey: 'G_BUYER',
+        email: 'buyer@example.com',
+      },
+      seller: {
+        alias: 'seller-alias',
+        publicKey: 'G_SELLER',
+        email: 'seller@example.com',
+      },
       escrow: {
         escrowId: 'escrow-4',
         contractId: 'C_CONTRACT_4',
@@ -160,7 +200,9 @@ describe('OrderService - Expiration and Cancellation Job', () => {
 
     await service.expireOrders();
 
-    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith('C_CONTRACT_4');
+    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith(
+      'C_CONTRACT_4',
+    );
     expect(prismaMock.order.update).not.toHaveBeenCalled();
   });
 
@@ -171,8 +213,16 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       expiresAt: new Date(Date.now() - 10000),
       buyerId: 'buyer-1',
       sellerId: 'seller-1',
-      buyer: { alias: 'buyer-alias', publicKey: 'G_BUYER', email: 'buyer@example.com' },
-      seller: { alias: 'seller-alias', publicKey: 'G_SELLER', email: 'seller@example.com' },
+      buyer: {
+        alias: 'buyer-alias',
+        publicKey: 'G_BUYER',
+        email: 'buyer@example.com',
+      },
+      seller: {
+        alias: 'seller-alias',
+        publicKey: 'G_SELLER',
+        email: 'seller@example.com',
+      },
       escrow: {
         escrowId: 'escrow-5',
         contractId: 'C_CONTRACT_5',
@@ -181,12 +231,19 @@ describe('OrderService - Expiration and Cancellation Job', () => {
     };
 
     prismaMock.order.findMany.mockResolvedValue([expiredOrder]);
-    escrowServiceMock.tw.getEscrowBalance.mockRejectedValue(new Error('Network error'));
-    prismaMock.order.update.mockResolvedValue({ ...expiredOrder, orderStatus: 'cancelled' });
+    escrowServiceMock.tw.getEscrowBalance.mockRejectedValue(
+      new Error('Network error'),
+    );
+    prismaMock.order.update.mockResolvedValue({
+      ...expiredOrder,
+      orderStatus: 'cancelled',
+    });
 
     await service.expireOrders();
 
-    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith('C_CONTRACT_5');
+    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith(
+      'C_CONTRACT_5',
+    );
     expect(prismaMock.order.update).toHaveBeenCalledWith({
       where: { orderId: 'order-5' },
       data: { orderStatus: 'cancelled' },
@@ -200,8 +257,16 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       expiresAt: new Date(Date.now() - 10000),
       buyerId: 'buyer-1',
       sellerId: 'seller-1',
-      buyer: { alias: 'buyer-alias', publicKey: 'G_BUYER', email: 'buyer@example.com' },
-      seller: { alias: 'seller-alias', publicKey: 'G_SELLER', email: 'seller@example.com' },
+      buyer: {
+        alias: 'buyer-alias',
+        publicKey: 'G_BUYER',
+        email: 'buyer@example.com',
+      },
+      seller: {
+        alias: 'seller-alias',
+        publicKey: 'G_SELLER',
+        email: 'seller@example.com',
+      },
       escrow: null,
     };
 
@@ -211,13 +276,21 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       expiresAt: new Date(Date.now() - 10000),
       buyerId: 'buyer-2',
       sellerId: 'seller-2',
-      buyer: { alias: 'buyer-2-alias', publicKey: 'G_BUYER_2', email: 'buyer2@example.com' },
-      seller: { alias: 'seller-2-alias', publicKey: 'G_SELLER_2', email: 'seller2@example.com' },
+      buyer: {
+        alias: 'buyer-2-alias',
+        publicKey: 'G_BUYER_2',
+        email: 'buyer2@example.com',
+      },
+      seller: {
+        alias: 'seller-2-alias',
+        publicKey: 'G_SELLER_2',
+        email: 'seller2@example.com',
+      },
       escrow: null,
     };
 
     prismaMock.order.findMany.mockResolvedValue([expiredOrder1, expiredOrder2]);
-    
+
     // Fail first order update, succeed second
     prismaMock.order.update
       .mockRejectedValueOnce(new Error('Database unique constraint failed'))

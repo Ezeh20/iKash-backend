@@ -15,7 +15,10 @@ export class OrderCron {
       await this.orderService.expireOrders();
       this.logger.log('Automated order expiration job completed.');
     } catch (error) {
-      this.logger.error('Failed to execute automated order expiration job:', error);
+      this.logger.error(
+        'Failed to execute automated order expiration job:',
+        error,
+      );
     }
   }
 }

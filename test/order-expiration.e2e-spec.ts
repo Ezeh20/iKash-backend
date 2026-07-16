@@ -215,7 +215,7 @@ describe('Order Expiration Flow (e2e)', () => {
 
     // Mock on-chain balance queries:
     // Order B on-chain balance is 0 (unfunded)
-    twServiceMock.getEscrowBalance.mockImplementation((contractId) => {
+    twServiceMock.getEscrowBalance.mockImplementation((contractId: string) => {
       if (contractId === 'CCONTACTE2EORDERB') {
         return Promise.resolve([{ address: contractId, balance: 0 }]);
       }
@@ -226,29 +226,45 @@ describe('Order Expiration Flow (e2e)', () => {
     await orderService.expireOrders();
 
     // Verify on-chain balance was checked for Order B (initialized escrow)
-    expect(twServiceMock.getEscrowBalance).toHaveBeenCalledWith('CCONTACTE2EORDERB');
+    expect(twServiceMock.getEscrowBalance).toHaveBeenCalledWith(
+      'CCONTACTE2EORDERB',
+    );
 
     // Verify on-chain balance was NOT checked for Order D (skipped at DB level due to funded status)
-    expect(twServiceMock.getEscrowBalance).not.toHaveBeenCalledWith('CCONTACTE2EORDERD');
+    expect(twServiceMock.getEscrowBalance).not.toHaveBeenCalledWith(
+      'CCONTACTE2EORDERD',
+    );
 
     // Verify order status updates
-    const updatedA = await prisma.order.findUnique({ where: { orderId: orderA.orderId } });
+    const updatedA = await prisma.order.findUnique({
+      where: { orderId: orderA.orderId },
+    });
     expect(updatedA.orderStatus).toBe('expired');
 
-    const updatedB = await prisma.order.findUnique({ where: { orderId: orderB.orderId } });
+    const updatedB = await prisma.order.findUnique({
+      where: { orderId: orderB.orderId },
+    });
     expect(updatedB.orderStatus).toBe('cancelled');
 
-    const updatedC = await prisma.order.findUnique({ where: { orderId: orderC.orderId } });
+    const updatedC = await prisma.order.findUnique({
+      where: { orderId: orderC.orderId },
+    });
     expect(updatedC.orderStatus).toBe('created');
 
-    const updatedD = await prisma.order.findUnique({ where: { orderId: orderD.orderId } });
+    const updatedD = await prisma.order.findUnique({
+      where: { orderId: orderD.orderId },
+    });
     expect(updatedD.orderStatus).toBe('locked');
 
     // Verify escrow records remain unchanged after expiration
-    const escrowBAfter = await prisma.escrowOnChain.findUnique({ where: { escrowId: escrowB.escrowId } });
+    const escrowBAfter = await prisma.escrowOnChain.findUnique({
+      where: { escrowId: escrowB.escrowId },
+    });
     expect(escrowBAfter.escrowStatus).toBe('initialized');
 
-    const escrowDAfter = await prisma.escrowOnChain.findFirst({ where: { orderId: orderD.orderId } });
+    const escrowDAfter = await prisma.escrowOnChain.findFirst({
+      where: { orderId: orderD.orderId },
+    });
     expect(escrowDAfter.escrowStatus).toBe('funded');
   });
 });
