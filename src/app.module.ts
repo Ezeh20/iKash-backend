@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from '../prisma/prisma.module'; // <- si tu prisma.module.ts está en raíz, ajusta este import
 import { UsersModule } from './modules/users/user.module';
 
@@ -17,6 +18,7 @@ import { StatsModule } from './modules/stats/stats.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     UsersModule,
