@@ -6,9 +6,11 @@
 export enum ErrorCode {
   // ── Auth / Wallet ──────────────────────────────────────────────────
   INVALID_WALLET = 'INVALID_WALLET',
-  MISSING_PUBLIC_KEY = 'MISSING_PUBLIC_KEY',
   UNAUTHORIZED_ACTION = 'UNAUTHORIZED_ACTION',
   KYC_REQUIRED = 'KYC_REQUIRED',
+  INVALID_CHALLENGE = 'INVALID_CHALLENGE',
+  INVALID_SIGNATURE = 'INVALID_SIGNATURE',
+  TOO_MANY_REQUESTS = 'TOO_MANY_REQUESTS',
 
   // ── User ────────────────────────────────────────────────────────────
   USER_NOT_FOUND = 'USER_NOT_FOUND',
