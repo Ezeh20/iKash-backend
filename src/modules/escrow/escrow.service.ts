@@ -510,7 +510,6 @@ export class EscrowService {
     }
 
     const updateData: Record<string, unknown> = {};
-
     switch (dto.action) {
       case EscrowAction.INITIALIZE:
         updateData.escrowStatus = 'initialized';
@@ -528,8 +527,28 @@ export class EscrowService {
         updateData.txHashRelease = dto.signedXdr.substring(0, 64);
         break;
     }
-
     await this.repo.update(dto.escrowId, updateData);
+
+    if (dto.action === EscrowAction.FUND) {
+      await this.auditLogService.create({
+        action: AuditAction.ESCROW_FUNDED,
+        resourceType: 'Escrow',
+        resourceId: dto.escrowId,
+        result: AuditResult.SUCCESS,
+        metadata: { contractId: result.contractId ?? escrow.contractId },
+      });
+    } else if (dto.action === EscrowAction.RELEASE) {
+      await this.auditLogService.create({
+        action: AuditAction.ESCROW_RELEASED,
+        resourceType: 'Escrow',
+        resourceId: dto.escrowId,
+        result: AuditResult.SUCCESS,
+        metadata: {
+          contractId: result.contractId ?? escrow.contractId,
+          txHashRelease: updateData.txHashRelease,
+        },
+      });
+    }
 
     return {
       escrowId: dto.escrowId,

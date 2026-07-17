@@ -5,6 +5,11 @@ import { UpdateOfferDto } from './dto/update-offer.dto';
 import { OfferRepository } from './offer.repository';
 import { AppException, ErrorCode } from '../../common/errors';
 import { Offer, offer_status, offer_type } from '@prisma/client';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import {
+  AuditAction,
+  AuditResult,
+} from '../audit-log/enums/audit-action.enum';
 
 type OfferFilter = {
   creatorId?: string;
@@ -15,10 +20,26 @@ type OfferFilter = {
 
 @Injectable()
 export class OfferService {
-  constructor(private readonly repo: OfferRepository) {}
+  constructor(
+    private readonly repo: OfferRepository,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
-  create(dto: CreateOfferDto): Promise<Offer> {
-    return this.repo.create(dto as unknown as Record<string, unknown>);
+  async create(dto: CreateOfferDto): Promise<Offer> {
+    const created = (await this.repo.create(
+      dto as unknown as Record<string, unknown>,
+    )) as Offer;
+
+    await this.auditLogService.create({
+      userId: created.creatorId,
+      action: AuditAction.OFFER_CREATED,
+      resourceType: 'Offer',
+      resourceId: created.offerId,
+      result: AuditResult.SUCCESS,
+      metadata: { type: created.type, assetCode: created.assetCode },
+    });
+
+    return created;
   }
 
   list(p: PaginationDto, q: OfferFilter): Promise<Offer[]> {
@@ -27,7 +48,6 @@ export class OfferService {
     if (q.status) where.status = q.status as offer_status;
     if (q.type) where.type = q.type as offer_type;
     if (q.assetCode) where.assetCode = q.assetCode;
-
     return this.repo.search(where, p.skip, p.take);
   }
 
@@ -42,14 +62,34 @@ export class OfferService {
     return item;
   }
 
-  update(id: string, dto: UpdateOfferDto): Promise<Offer> {
-    return this.repo.update(
+  async update(id: string, dto: UpdateOfferDto): Promise<Offer> {
+    const updated = (await this.repo.update(
       id,
       dto as unknown as Record<string, unknown>,
-    ) as Promise<Offer>;
+    )) as Offer;
+
+    await this.auditLogService.create({
+      userId: updated.creatorId,
+      action: AuditAction.OFFER_UPDATED,
+      resourceType: 'Offer',
+      resourceId: id,
+      result: AuditResult.SUCCESS,
+    });
+
+    return updated;
   }
 
-  remove(id: string): Promise<Offer> {
-    return this.repo.delete(id) as Promise<Offer>;
+  async remove(id: string): Promise<Offer> {
+    const removed = (await this.repo.delete(id)) as Offer;
+
+    await this.auditLogService.create({
+      userId: removed.creatorId,
+      action: AuditAction.OFFER_CANCELLED,
+      resourceType: 'Offer',
+      resourceId: id,
+      result: AuditResult.SUCCESS,
+    });
+
+    return removed;
   }
 }

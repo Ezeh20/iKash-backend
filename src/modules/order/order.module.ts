@@ -3,9 +3,9 @@ import { OrderController } from './order.controller';
 import { OrderRepository } from './order.repository';
 import { OrderService } from './order.service';
 import { EscrowModule } from '../escrow/escrow.module';
-
+import { AuditLogModule } from '../audit-log/audit-log.module';
 @Module({
-  imports: [EscrowModule],
+  imports: [EscrowModule, AuditLogModule],
   controllers: [OrderController],
   providers: [OrderService, OrderRepository],
 })

@@ -7,6 +7,11 @@ import { OrderRepository } from './order.repository';
 import { EscrowService } from '../escrow/escrow.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import { Order, order_status } from '@prisma/client';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import {
+  AuditAction,
+  AuditResult,
+} from '../audit-log/enums/audit-action.enum';
 
 type OrderFilter = {
   offerId?: string;
@@ -55,6 +60,7 @@ export class OrderService {
   constructor(
     private readonly repo: OrderRepository,
     private readonly escrowService: EscrowService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   /**
@@ -110,7 +116,16 @@ export class OrderService {
 
     this.logger.log(`Order ${orderId} and escrow persisted successfully.`);
 
-    // ── Return combined response ─────────────────────────────────────────
+    await this.auditLogService.create({
+      userId: dto.buyerId,
+      action: AuditAction.ORDER_CREATED,
+      resourceType: 'Order',
+      resourceId: orderId,
+      result: AuditResult.SUCCESS,
+      metadata: { offerId: dto.offerId, sellerId: dto.sellerId },
+    });
+
+    // ── Return combined response ────────────────────────────────────────
     return {
       ...order,
       escrow: order.escrowId ? { escrowId: order.escrowId } : undefined,
@@ -143,14 +158,48 @@ export class OrderService {
     return item;
   }
 
-  update(id: string, dto: UpdateOrderDto): Promise<Order> {
+  async update(id: string, dto: UpdateOrderDto): Promise<Order> {
     const data: Record<string, unknown> = { ...dto };
     if (dto.expiresAt) data.expiresAt = new Date(dto.expiresAt);
-    return this.repo.update(id, data) as Promise<Order>;
+    const updated = (await this.repo.update(id, data)) as Order;
+
+    // Record cancellation/expiration explicitly when the update sets the
+    // order into one of those terminal statuses; other field updates
+    // (e.g. expiresAt extension) are not separately audited here.
+    if (dto.orderStatus === 'cancelled') {
+      await this.auditLogService.create({
+        userId: updated.buyerId,
+        action: AuditAction.ORDER_CANCELLED,
+        resourceType: 'Order',
+        resourceId: id,
+        result: AuditResult.SUCCESS,
+      });
+    } else if (dto.orderStatus === 'expired') {
+      await this.auditLogService.create({
+        userId: updated.buyerId,
+        action: AuditAction.ORDER_EXPIRED,
+        resourceType: 'Order',
+        resourceId: id,
+        result: AuditResult.SUCCESS,
+      });
+    }
+
+    return updated;
   }
 
-  remove(id: string): Promise<Order> {
-    return this.repo.delete(id) as Promise<Order>;
+  async remove(id: string): Promise<Order> {
+    const removed = (await this.repo.delete(id)) as Order;
+
+    await this.auditLogService.create({
+      userId: removed.buyerId,
+      action: AuditAction.ORDER_CANCELLED,
+      resourceType: 'Order',
+      resourceId: id,
+      result: AuditResult.SUCCESS,
+      metadata: { reason: 'deleted' },
+    });
+
+    return removed;
   }
 
   getUserStats(userId: string): Promise<UserStats> {
