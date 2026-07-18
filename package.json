@@ -80,7 +80,7 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(@stellar|@noble|uint8array-extras|eventsource)/)"
+      "/node_modules/(?!(\\.pnpm|@stellar|@noble|uint8array-extras|eventsource)/)"
     ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
