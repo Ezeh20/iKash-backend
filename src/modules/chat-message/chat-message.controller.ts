@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { PaginationDto } from '../../common/pagination.dto';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { ChatMessageService } from './chat-message.service';

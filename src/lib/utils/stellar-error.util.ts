@@ -12,7 +12,8 @@ interface HorizonResultCodes {
   operations?: string[];
 }
 
-const DEFAULT_ERROR_MESSAGE = 'The transaction could not be submitted to Stellar.';
+const DEFAULT_ERROR_MESSAGE =
+  'The transaction could not be submitted to Stellar.';
 
 const OPERATION_ERROR_MESSAGES: Record<string, string> = {
   op_no_trust: 'The recipient or the fee collector has no USDC trustline.',
@@ -20,15 +21,27 @@ const OPERATION_ERROR_MESSAGES: Record<string, string> = {
 };
 
 const TRANSACTION_ERROR_MESSAGES: Record<string, string> = {
-  tx_insufficient_balance: 'Insufficient funds to cover the amount and the fee.',
+  tx_insufficient_balance:
+    'Insufficient funds to cover the amount and the fee.',
   tx_bad_auth: 'The transaction is not signed correctly.',
   tx_bad_auth_extra: 'The transaction is not signed correctly.',
   tx_too_late: 'The transaction expired. Please prepare and sign it again.',
   tx_too_early: 'The transaction expired. Please prepare and sign it again.',
 };
 
+interface ErrorWithResponse {
+  response?: {
+    data?: {
+      extras?: {
+        result_codes?: HorizonResultCodes;
+      };
+    };
+  };
+}
+
 function extractResultCodes(err: unknown): HorizonResultCodes {
-  const codes = (err as any)?.response?.data?.extras?.result_codes;
+  const codes = (err as ErrorWithResponse)?.response?.data?.extras
+    ?.result_codes;
   return {
     transaction: codes?.transaction,
     operations: codes?.operations ?? [],

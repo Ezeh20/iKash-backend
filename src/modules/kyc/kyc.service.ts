@@ -1,6 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
+import { kyc_status } from '@prisma/client';
+
+interface DiditWebhookPayload {
+  vendor_data?: string;
+  status?: string;
+  verification_session?: { vendor_data?: string; status?: string };
+  session?: { vendor_data?: string; status?: string };
+  data?: { vendor_data?: string; status?: string };
+}
+
+interface DiditSessionResponse {
+  url: string;
+}
 
 @Injectable()
 export class KycService {
@@ -12,7 +25,7 @@ export class KycService {
 
   constructor(private prisma: PrismaService) {}
 
-  async initializeSession(userId: string) {
+  async initializeSession(userId: string): Promise<{ sessionUrl: string }> {
     try {
       if (!this.diditApiKey) {
         throw new AppException(
@@ -39,7 +52,8 @@ export class KycService {
         body: JSON.stringify({
           vendor_data: userId,
           workflow_id: this.diditWorkflowId,
-          callback: 'http://localhost:3001/dashboard',
+          callback:
+            process.env.KYC_CALLBACK_URL || 'http://localhost:3001/dashboard',
         }),
       });
 
@@ -52,13 +66,15 @@ export class KycService {
         );
       }
 
-      const data = await response.json();
+      const data: DiditSessionResponse =
+        (await response.json()) as DiditSessionResponse;
       return { sessionUrl: data.url };
     } catch (error) {
       // Re-throw AppExceptions directly; wrap anything else
       if (error instanceof AppException) throw error;
 
-      this.logger.error(`Error initializing KYC session: ${error.message}`);
+      const err = error as Error;
+      this.logger.error(`Error initializing KYC session: ${err.message}`);
       throw new AppException(
         ErrorCode.KYC_SESSION_FAILED,
         'Could not initialize KYC session.',
@@ -66,20 +82,20 @@ export class KycService {
     }
   }
 
-  async processWebhookEvent(payload: any) {
+  async processWebhookEvent(payload: DiditWebhookPayload): Promise<void> {
     this.logger.log(`[KYC WEBHOOK] Full payload: ${JSON.stringify(payload)}`);
 
-    const userId =
-      payload?.vendor_data ||
-      payload?.verification_session?.vendor_data ||
-      payload?.session?.vendor_data ||
-      payload?.data?.vendor_data;
+    const userId: string | undefined =
+      payload.vendor_data ??
+      payload.verification_session?.vendor_data ??
+      payload.session?.vendor_data ??
+      payload.data?.vendor_data;
 
-    const rawStatus =
-      payload?.status ||
-      payload?.verification_session?.status ||
-      payload?.session?.status ||
-      payload?.data?.status;
+    const rawStatus: string | undefined =
+      payload.status ??
+      payload.verification_session?.status ??
+      payload.session?.status ??
+      payload.data?.status;
 
     this.logger.log(
       `[KYC WEBHOOK] Extracted userId=${userId}, rawStatus=${rawStatus}`,
@@ -101,14 +117,16 @@ export class KycService {
       return;
     }
 
-    const statusLower =
+    const statusLower: string =
       rawStatus?.toLowerCase().trim().replace(/ +/g, '_') || '';
     this.logger.log(`[KYC WEBHOOK] Normalized status: '${statusLower}'`);
 
-    let kycStatus: any = 'pending';
+    let kycStatus: kyc_status = 'pending';
     if (statusLower === 'approved') kycStatus = 'approved';
-    else if (statusLower === 'declined' || statusLower === 'rejected') kycStatus = 'rejected';
-    else if (statusLower === 'review' || statusLower === 'in_review') kycStatus = 'in_review';
+    else if (statusLower === 'declined' || statusLower === 'rejected')
+      kycStatus = 'rejected';
+    else if (statusLower === 'review' || statusLower === 'in_review')
+      kycStatus = 'in_review';
     else if (statusLower === 'expired') kycStatus = 'expired';
     else if (statusLower === 'kyc_expired') kycStatus = 'kyc_expired';
     else if (statusLower === 'abandoned') kycStatus = 'abandoned';
@@ -126,8 +144,9 @@ export class KycService {
         `[KYC WEBHOOK] ✅ Updated user ${userId} → kycStatus: ${updatedUser.kycStatus}`,
       );
     } catch (error) {
+      const err = error as Error;
       this.logger.error(
-        `[KYC WEBHOOK] ❌ Failed to update user ${userId}: ${error.message}`,
+        `[KYC WEBHOOK] ❌ Failed to update user ${userId}: ${err.message}`,
       );
     }
   }

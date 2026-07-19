@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Post,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import { StellarService } from './stellar.service';
 import { SendPaymentDto } from './dto/send-payment';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -29,7 +37,10 @@ export class StellarController {
     @CurrentUser() user: { publicKey: string },
     @Query('limit') limit?: string,
   ) {
-    return this.stellar.getTransactions(user.publicKey, limit ? Number(limit) : 10);
+    return this.stellar.getTransactions(
+      user.publicKey,
+      limit ? Number(limit) : 10,
+    );
   }
 
   @Get('transactions/:publicKey')

@@ -11,9 +11,12 @@ export class AuthController {
    * Emits a temporary JWT based on the public key.
    */
   @Post('login')
-  async login(@Body('publicKey') publicKey: string) {
+  login(@Body('publicKey') publicKey: string) {
     if (!publicKey) {
-      throw new AppException(ErrorCode.MISSING_PUBLIC_KEY, 'Public key is required');
+      throw new AppException(
+        ErrorCode.MISSING_PUBLIC_KEY,
+        'Public key is required',
+      );
     }
     return this.authService.login(publicKey);
   }

@@ -9,18 +9,20 @@ datasource db {
 }
 
 model AppUser {
-  userId               String          @id @default(dbgenerated("gen_random_uuid()")) @map("user_id") @db.Uuid
-  publicKey            String          @unique @map("public_key")
-  alias                String?         @unique @map("alias")
-  kycStatus            kyc_status      @default(pending) @map("kyc_status")
-  kycUpdatedAt         DateTime?       @map("kyc_updated_at") @db.Timestamptz(6)
-  totalVolume          Decimal         @default(0) @map("total_volume") @db.Decimal(20, 7)
-  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  currentNonce         String?         @map("current_nonce")
-  email                String?         @map("email")
-  notificationsEnabled Boolean         @default(true) @map("notifications_enabled")
-  pendingAccountInfo   Boolean         @default(true) @map("pending_account_info")
-  preferredCurrency    String?         @map("preferred_currency")
+  userId               String           @id @default(dbgenerated("gen_random_uuid()")) @map("user_id") @db.Uuid
+  publicKey            String           @unique @map("public_key")
+  alias                String?          @unique @map("alias")
+  username             String?          @map("username")
+  kycStatus            kyc_status       @default(pending) @map("kyc_status")
+  kycUpdatedAt         DateTime?        @map("kyc_updated_at") @db.Timestamptz(6)
+  totalVolume          Decimal          @default(0) @map("total_volume") @db.Decimal(20, 7)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  currentNonce         String?          @map("current_nonce")
+  email                String?          @map("email")
+  profileImageUrl      String?          @map("profile_image_url")
+  notificationsEnabled Boolean          @default(true) @map("notifications_enabled")
+  pendingAccountInfo   Boolean          @default(true) @map("pending_account_info")
+  preferredCurrency    String?          @map("preferred_currency")
   bio                  String?         @map("bio")
   securityUpdates      Boolean         @default(true) @map("security_updates")
   chatMessages         ChatMessage[]
@@ -77,6 +79,7 @@ model EscrowOnChain {
   contractId    String?       @unique @map("contract_id")
   escrowStatus  escrow_status @default(pending) @map("escrow_status")
   sellerAddress String?       @map("seller_address")
+  evidenceUrl   String?       @map("evidence_url")
   order         Order         @relation(fields: [orderId], references: [orderId], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("escrowonchain")

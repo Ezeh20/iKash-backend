@@ -61,7 +61,7 @@ export class KycController {
     @Headers('x-signature') signatureV1: string,
     @Headers('x-signature-simple') signatureSimple: string,
     @Req() req: RawBodyRequest<Request>,
-    @Body() payload: any,
+    @Body() payload: Record<string, unknown>,
   ) {
     this.logger.log(
       `[WEBHOOK] Received webhook. Headers: x-signature-v2=${!!signatureV2}, x-signature=${!!signatureV1}, x-signature-simple=${!!signatureSimple}`,
@@ -102,9 +102,9 @@ export class KycController {
       }
       this.logger.log('[WEBHOOK] Signature verified ✅');
     } else if (signatureSimple) {
-      const sessionId = payload?.session_id || '';
-      const status = payload?.status || '';
-      const webhookType = payload?.webhook_type || '';
+      const sessionId = (payload?.session_id as string) || '';
+      const status = (payload?.status as string) || '';
+      const webhookType = (payload?.webhook_type as string) || '';
       const simplePayload = `:${sessionId}:${status}:${webhookType}`;
       const expectedSimple = crypto
         .createHmac('sha256', this.webhookSecret)

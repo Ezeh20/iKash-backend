@@ -3,17 +3,73 @@ import { ConfigService } from '@nestjs/config';
 import {
   Asset,
   BASE_FEE,
+  FeeBumpTransaction,
   Horizon,
   Keypair,
   Memo,
   Networks,
   Operation,
+  Transaction,
   TransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { AppException, ErrorCode } from '../../common/errors';
 import { describeHorizonError } from '../../lib/utils/stellar-error.util';
 
 type NetworkType = 'testnet' | 'public';
+
+export interface BalanceRecord {
+  asset_type: string;
+  asset_code: string | null;
+  asset_issuer: string | null;
+  balance: string;
+  limit: string | null;
+}
+
+export interface TransactionRecord {
+  id: string;
+  transaction_hash: string;
+  created_at: string;
+  type: string;
+  amount: string | null;
+  asset: string | null;
+  asset_issuer: string | null;
+  from: string | null;
+  to: string | null;
+  direction: 'received' | 'sent';
+}
+
+export interface PaymentResult {
+  hash: string;
+  ledger: number;
+  successful: boolean;
+}
+
+interface UnsignedSendResult {
+  xdr: string;
+  networkPassphrase: string;
+}
+
+interface HorizonError {
+  response?: {
+    status: number;
+  };
+}
+
+// Minimal field shapes for Stellar operation records (union-safe access)
+interface OperationFields {
+  id: string;
+  transaction_hash: string;
+  created_at: string;
+  type: string;
+  amount?: string;
+  asset_type?: string;
+  asset_code?: string;
+  asset_issuer?: string;
+  from?: string;
+  to?: string;
+  funder?: string;
+  account?: string;
+}
 
 @Injectable()
 export class StellarService {
@@ -37,24 +93,30 @@ export class StellarService {
     this.server = new Horizon.Server(horizonUrl);
   }
 
-  async getAccount(publicKey: string) {
+  async getAccount(publicKey: string): Promise<Horizon.AccountResponse> {
     this.assertPublicKey(publicKey);
     return this.server.loadAccount(publicKey);
   }
 
-  async getBalances(publicKey: string) {
+  async getBalances(publicKey: string): Promise<BalanceRecord[]> {
     const account = await this.getAccount(publicKey);
 
-    return account.balances.map((b: any) => ({
-      asset_type: b.asset_type,
-      asset_code: b.asset_code ?? null,
-      asset_issuer: b.asset_issuer ?? null,
-      balance: b.balance,
-      limit: b.limit ?? null,
-    }));
+    return account.balances.map((b): BalanceRecord => {
+      const record: BalanceRecord = {
+        asset_type: b.asset_type,
+        asset_code: 'asset_code' in b ? (b.asset_code ?? null) : null,
+        asset_issuer: 'asset_issuer' in b ? (b.asset_issuer ?? null) : null,
+        balance: b.balance,
+        limit: 'limit' in b ? (b.limit ?? null) : null,
+      };
+      return record;
+    });
   }
 
-  async getTransactions(publicKey: string, limit = 10) {
+  async getTransactions(
+    publicKey: string,
+    limit = 10,
+  ): Promise<TransactionRecord[]> {
     this.assertPublicKey(publicKey);
 
     try {
@@ -65,21 +127,25 @@ export class StellarService {
         .limit(Math.min(Math.max(limit, 1), 200))
         .call();
 
-      return res.records.map((op: any) => ({
-        id: op.id,
-        transaction_hash: op.transaction_hash,
-        created_at: op.created_at,
-        type: op.type,
-        amount: op.amount ?? null,
-        asset: op.asset_type === 'native' ? 'XLM' : (op.asset_code ?? null),
-        asset_issuer: op.asset_issuer ?? null,
-        from: op.from ?? op.funder ?? null,
-        to: op.to ?? op.account ?? null,
-        direction:
-          op.to === publicKey || op.account === publicKey ? 'received' : 'sent',
-      }));
-    } catch (err: any) {
-      if (err?.response?.status === 404) {
+      return res.records.map((op): TransactionRecord => {
+        const o = op as unknown as OperationFields;
+        return {
+          id: o.id,
+          transaction_hash: o.transaction_hash,
+          created_at: o.created_at,
+          type: o.type,
+          amount: o.amount ?? null,
+          asset: o.asset_type === 'native' ? 'XLM' : (o.asset_code ?? null),
+          asset_issuer: o.asset_issuer ?? null,
+          from: o.from ?? o.funder ?? null,
+          to: o.to ?? o.account ?? null,
+          direction:
+            o.to === publicKey || o.account === publicKey ? 'received' : 'sent',
+        };
+      });
+    } catch (err: unknown) {
+      const horizonErr = err as HorizonError;
+      if (horizonErr?.response?.status === 404) {
         throw new AppException(
           ErrorCode.STELLAR_ACCOUNT_NOT_FOUND,
           `Account ${publicKey} not found on Stellar network.`,
@@ -101,7 +167,7 @@ export class StellarService {
     amount: string;
     memo?: string;
     asset?: { code: string; issuer?: string };
-  }) {
+  }): Promise<PaymentResult> {
     if (!this.signerSecret) {
       throw new AppException(
         ErrorCode.MISSING_SIGNER_SECRET,
@@ -135,7 +201,8 @@ export class StellarService {
 
     const tx = builder.setTimeout(60).build();
     tx.sign(sourceKeypair);
-    const res = await this.server.submitTransaction(tx);
+    const res: Horizon.HorizonApi.SubmitTransactionResponse =
+      await this.server.submitTransaction(tx);
 
     return {
       hash: res.hash,
@@ -154,7 +221,7 @@ export class StellarService {
     amount: string;
     feeAddress: string;
     feeAmount: string;
-  }) {
+  }): Promise<UnsignedSendResult> {
     this.assertPublicKey(params.sourcePublicKey);
     this.assertPublicKey(params.destination);
     this.assertPublicKey(params.feeAddress);
@@ -195,8 +262,8 @@ export class StellarService {
    * Receives an XDR already signed by the client and submits it to Stellar.
    * Translates Horizon errors into clear messages via describeHorizonError.
    */
-  async submitSignedXdr(signedXdr: string) {
-    let tx: any;
+  async submitSignedXdr(signedXdr: string): Promise<PaymentResult> {
+    let tx: Transaction | FeeBumpTransaction;
     try {
       tx = TransactionBuilder.fromXDR(signedXdr, this.networkPassphrase);
     } catch {
@@ -207,22 +274,24 @@ export class StellarService {
     }
 
     try {
-      const res = await this.server.submitTransaction(tx);
+      const res: Horizon.HorizonApi.SubmitTransactionResponse =
+        await this.server.submitTransaction(tx);
       return {
         hash: res.hash,
         ledger: res.ledger,
         successful: res.successful,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const horizonErr = err as HorizonError;
       throw new AppException(
         ErrorCode.STELLAR_TRANSACTION_FAILED,
-        describeHorizonError(err),
+        describeHorizonError(horizonErr),
       );
     }
   }
 
   /** Builds the USDC Asset from the configured issuer. */
-  private getUsdcAsset() {
+  private getUsdcAsset(): Asset {
     const issuer = this.config.get<string>('TRUSTLESS_WORK_USDC_ISSUER');
     if (!issuer) {
       throw new AppException(
@@ -234,7 +303,7 @@ export class StellarService {
     return new Asset('USDC', issuer);
   }
 
-  private buildAsset(asset?: { code: string; issuer?: string }) {
+  private buildAsset(asset?: { code: string; issuer?: string }): Asset {
     if (!asset || asset.code === 'XLM') return Asset.native();
 
     if (!asset.issuer) {
@@ -248,7 +317,7 @@ export class StellarService {
     return new Asset(asset.code, asset.issuer);
   }
 
-  private assertPublicKey(key: string) {
+  private assertPublicKey(key: string): void {
     if (!key || key[0] !== 'G' || key.length < 50) {
       throw new AppException(
         ErrorCode.INVALID_STELLAR_ADDRESS,
@@ -257,7 +326,7 @@ export class StellarService {
     }
   }
 
-  private assertAmount(amount: string) {
+  private assertAmount(amount: string): void {
     if (!/^\d+(\.\d{1,7})?$/.test(amount) || Number(amount) <= 0) {
       throw new AppException(
         ErrorCode.INVALID_AMOUNT,

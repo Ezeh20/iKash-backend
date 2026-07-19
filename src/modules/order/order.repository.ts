@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../../common/base.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Order, Prisma } from '@prisma/client';
 
 @Injectable()
 export class OrderRepository extends BaseRepository {
@@ -13,7 +13,7 @@ export class OrderRepository extends BaseRepository {
   // Accepts an optional pre-generated orderId so the same UUID can be used as the
   // Trustless Work engagementId before any DB record is persisted.
   async create(data: {
-    orderId?: string;            // optional pre-generated UUID
+    orderId?: string; // optional pre-generated UUID
     offerId: string;
     buyerId: string;
     sellerId: string;
@@ -28,17 +28,17 @@ export class OrderRepository extends BaseRepository {
       buyerAddress: string;
       amount: string | number;
     };
-  }) {
+  }): Promise<Order & { escrowId: string | null }> {
     const created = await this.prisma.$transaction(async (tx) => {
-      const payload: Prisma.OrderUncheckedCreateInput = {
+      const payload = {
         ...(data.orderId ? { orderId: data.orderId } : {}),
         offerId: data.offerId,
         buyerId: data.buyerId,
         sellerId: data.sellerId,
-        assetAmount: data.assetAmount as any,
-        fiatAmount: data.fiatAmount as any,
-        orderStatus: (data.orderStatus as any) || undefined,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt as string) : undefined,
+        assetAmount: data.assetAmount,
+        fiatAmount: data.fiatAmount,
+        orderStatus: data.orderStatus || undefined,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
       } as Prisma.OrderUncheckedCreateInput;
 
       const order = await tx.order.create({ data: payload });
@@ -52,7 +52,7 @@ export class OrderRepository extends BaseRepository {
             contractId: data.escrow.contractId,
             sellerAddress: data.escrow.sellerAddress,
             buyerAddress: data.escrow.buyerAddress,
-            amount: data.escrow.amount as any,
+            amount: data.escrow.amount,
             escrowStatus: 'initialized',
           },
         });
@@ -60,14 +60,21 @@ export class OrderRepository extends BaseRepository {
       }
 
       // Mark the offer as executed so it no longer appears in the active market
-      await tx.offer.update({ where: { offerId: data.offerId }, data: { executed: true } });
+      await tx.offer.update({
+        where: { offerId: data.offerId },
+        data: { executed: true },
+      });
       return { ...order, escrowId };
     });
 
     return created;
   }
 
-  search(where: any, skip = 0, take = 20) {
+  search(
+    where: Record<string, unknown>,
+    skip = 0,
+    take = 20,
+  ): Promise<Order[]> {
     return this.prisma.order.findMany({
       where,
       skip,
@@ -90,7 +97,7 @@ export class OrderRepository extends BaseRepository {
     });
   }
 
-  findById(id: string) {
+  findById(id: string): Promise<Order | null> {
     return this.prisma.order.findUnique({
       where: { orderId: id },
       include: {
@@ -110,7 +117,9 @@ export class OrderRepository extends BaseRepository {
     });
   }
 
-  async getUserStats(userId: string) {
+  async getUserStats(
+    userId: string,
+  ): Promise<{ totalOrders: number; completedOrders: number }> {
     const totalOrders = await this.prisma.order.count({
       where: {
         OR: [{ buyerId: userId }, { sellerId: userId }],

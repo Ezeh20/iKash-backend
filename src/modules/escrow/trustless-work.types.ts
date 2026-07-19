@@ -15,7 +15,12 @@
 // ─── Primitives ────────────────────────────────────────────────────────────────
 
 export type EscrowType = 'single-release' | 'multi-release';
-export type SingleReleaseEscrowStatus = 'pending' | 'active' | 'completed' | 'disputed' | 'resolved';
+export type SingleReleaseEscrowStatus =
+  | 'pending'
+  | 'active'
+  | 'completed'
+  | 'disputed'
+  | 'resolved';
 export type Status = 'SUCCESS' | 'ERROR' | 'PENDING';
 
 // ─── Shared sub-types ──────────────────────────────────────────────────────────
