@@ -39,7 +39,12 @@ export class AuditLogRepository {
     });
   }
 
-  findByResource(resourceType: string, resourceId: string, skip = 0, take = 20) {
+  findByResource(
+    resourceType: string,
+    resourceId: string,
+    skip = 0,
+    take = 20,
+  ) {
     return this.prisma.auditLog.findMany({
       where: { resourceType, resourceId },
       orderBy: { createdAt: 'desc' },

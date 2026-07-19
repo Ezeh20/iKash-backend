@@ -79,7 +79,12 @@ export class AuditLogService {
     return this.repository.findByUser(userId, skip, take);
   }
 
-  findByResource(resourceType: string, resourceId: string, skip = 0, take = 20) {
+  findByResource(
+    resourceType: string,
+    resourceId: string,
+    skip = 0,
+    take = 20,
+  ) {
     return this.repository.findByResource(resourceType, resourceId, skip, take);
   }
 }
