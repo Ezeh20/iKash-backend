@@ -13,6 +13,7 @@ model AppUser {
   publicKey            String           @unique @map("public_key")
   alias                String?          @unique @map("alias")
   username             String?          @map("username")
+  role                 app_role         @default(user) @map("role")
   kycStatus            kyc_status       @default(pending) @map("kyc_status")
   kycUpdatedAt         DateTime?        @map("kyc_updated_at") @db.Timestamptz(6)
   totalVolume          Decimal          @default(0) @map("total_volume") @db.Decimal(20, 7)
@@ -139,6 +140,12 @@ model payment_provider {
   @@index([country_code], map: "idx_payment_provider_country_code")
   @@index([is_active], map: "idx_payment_provider_is_active")
   @@index([type], map: "idx_payment_provider_type")
+}
+
+enum app_role {
+  user
+  admin
+  support
 }
 
 enum kyc_status {

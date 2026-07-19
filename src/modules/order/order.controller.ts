@@ -15,6 +15,9 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderService } from './order.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { KycVerifiedGuard } from '../../common/kyc-verified.guard';
+import { ResourceOwnerGuard } from '../../common/guards/resource-owner.guard';
+import { ResourceOwner } from '../../common/decorators/resource-owner.decorator';
+import { ResourceType } from '../../common/interfaces/resource-owner.interface';
 
 @Controller('orders')
 export class OrderController {
@@ -37,18 +40,22 @@ export class OrderController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, ResourceOwnerGuard)
+  @ResourceOwner(ResourceType.ORDER)
   get(@Param('id') id: string) {
     return this.service.get(id);
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, KycVerifiedGuard)
+  @UseGuards(JwtAuthGuard, KycVerifiedGuard, ResourceOwnerGuard)
+  @ResourceOwner(ResourceType.ORDER)
   update(@Param('id') id: string, @Body() dto: UpdateOrderDto) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, KycVerifiedGuard)
+  @UseGuards(JwtAuthGuard, KycVerifiedGuard, ResourceOwnerGuard)
+  @ResourceOwner(ResourceType.ORDER)
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }
