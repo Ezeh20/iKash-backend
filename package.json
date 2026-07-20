@@ -90,7 +90,8 @@
       ]
     },
     "transformIgnorePatterns": [
-      "node_modules/(?!(@stellar|@noble|@scure|uint8array-extras)/)"
+      "node_modules/\\.pnpm/(?!(@stellar|@noble|@scure|uint8array-extras)[@+])",
+      "node_modules/(?!(\\.pnpm|@stellar|@noble|@scure|uint8array-extras)/)"
     ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
