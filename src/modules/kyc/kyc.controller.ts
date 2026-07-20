@@ -11,6 +11,8 @@ import {
   Query,
   type RawBodyRequest,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { rateLimitConfig } from '../../config/rate-limit.config';
 import type { Request } from 'express';
 import { KycService } from './kyc.service';
 import * as crypto from 'crypto';
@@ -27,6 +29,7 @@ export class KycController {
     private readonly prisma: PrismaService,
   ) {}
 
+  @Throttle({ default: rateLimitConfig.kycStart })
   @Post('start')
   async startKyc(@Body('userId') userId: string) {
     if (!userId) {
@@ -54,6 +57,7 @@ export class KycController {
     return user;
   }
 
+  @Throttle({ default: rateLimitConfig.kycWebhook })
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   async handleWebhook(

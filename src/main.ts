@@ -29,6 +29,10 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Configure proxy trust for rate-limiting client IP extraction
+  const trustProxy = process.env.TRUST_PROXY || '1';
+  app.getHttpAdapter().getInstance().set('trust proxy', isNaN(Number(trustProxy)) ? trustProxy : Number(trustProxy));
+
   // 👇 CORRECCIÓN AQUÍ: Agrega '0.0.0.0' como segundo parámetro
   const port = process.env.PORT ?? 3001;
   await app.listen(port, '0.0.0.0');
