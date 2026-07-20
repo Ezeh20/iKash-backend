@@ -6,10 +6,7 @@ import { OfferRepository } from './offer.repository';
 import { AppException, ErrorCode } from '../../common/errors';
 import { Offer, offer_status, offer_type } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import {
-  AuditAction,
-  AuditResult,
-} from '../audit-log/enums/audit-action.enum';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 type OfferFilter = {
   creatorId?: string;
@@ -26,9 +23,9 @@ export class OfferService {
   ) {}
 
   async create(dto: CreateOfferDto): Promise<Offer> {
-    const created = (await this.repo.create(
+    const created = await this.repo.create(
       dto as unknown as Record<string, unknown>,
-    )) as Offer;
+    );
 
     await this.auditLogService.create({
       userId: created.creatorId,

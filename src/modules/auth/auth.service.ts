@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import {
-  AuditAction,
-  AuditResult,
-} from '../audit-log/enums/audit-action.enum';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 export interface RequestContext {
   ipAddress?: string;

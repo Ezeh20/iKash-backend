@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { PaginationDto } from '../../common/pagination.dto';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { UpdatePaymentMethodDto } from './dto/update-payment-method.dto';
@@ -6,10 +6,7 @@ import { PaymentMethodsRepository } from './payment-methods.repository';
 import { AppException, ErrorCode } from '../../common/errors';
 import { PaymentMethod } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import {
-  AuditAction,
-  AuditResult,
-} from '../audit-log/enums/audit-action.enum';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 @Injectable()
 export class PaymentMethodsService {
@@ -35,7 +32,7 @@ export class PaymentMethodsService {
   }
 
   list(p: PaginationDto): Promise<PaymentMethod[]> {
-    return this.repo.findMany({ skip: p.skip, take: p.take }) as Promise
+    return this.repo.findMany({ skip: p.skip, take: p.take }) as Promise<
       PaymentMethod[]
     >;
   }

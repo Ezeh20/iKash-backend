@@ -42,10 +42,7 @@ import {
   UploadFileInput,
 } from '../file-storage/file-storage.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import {
-  AuditAction,
-  AuditResult,
-} from '../audit-log/enums/audit-action.enum';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 @Injectable()
 export class EscrowService {

@@ -1,12 +1,9 @@
-import { Controller, Post, Body, Req } from '@nestjs/common';
+﻿import { Controller, Post, Body, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
-import { AppException, ErrorCode } from '../../common/errors';
+import { AppException } from '../../common/errors';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import {
-  AuditAction,
-  AuditResult,
-} from '../audit-log/enums/audit-action.enum';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 @Controller('auth')
 export class AuthController {

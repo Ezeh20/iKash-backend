@@ -3,10 +3,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import { kyc_status } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import {
-  AuditAction,
-  AuditResult,
-} from '../audit-log/enums/audit-action.enum';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 interface DiditWebhookPayload {
   vendor_data?: string;

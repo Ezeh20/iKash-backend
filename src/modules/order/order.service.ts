@@ -8,10 +8,7 @@ import { EscrowService } from '../escrow/escrow.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import { Order, order_status } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import {
-  AuditAction,
-  AuditResult,
-} from '../audit-log/enums/audit-action.enum';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 type OrderFilter = {
   offerId?: string;
