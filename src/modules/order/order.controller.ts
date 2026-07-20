@@ -13,6 +13,7 @@ import { PaginationDto } from '../../common/pagination.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderService } from './order.service';
+import type { OrderFilter } from './order.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { KycVerifiedGuard } from '../../common/kyc-verified.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -28,7 +29,7 @@ export class OrderController {
   }
 
   @Get()
-  list(@Query() p: PaginationDto, @Query() q: any) {
+  list(@Query() p: PaginationDto, @Query() q: OrderFilter) {
     return this.service.list(p, q);
   }
 

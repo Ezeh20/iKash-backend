@@ -13,7 +13,7 @@ import {
   EscrowOnChain,
 } from '@prisma/client';
 
-type OrderFilter = {
+export type OrderFilter = {
   offerId?: string;
   buyerId?: string;
   sellerId?: string;
@@ -227,9 +227,11 @@ export class OrderService {
       );
     }
 
-    this.logger.log(
-      `Order ${id} cancelled by user ${userId} (previous status: "${order.orderStatus}")`,
-    );
+    this.logger.log('order.cancellation.completed', {
+      orderId: id,
+      userId,
+      previousStatus: order.orderStatus,
+    });
 
     return this.repo.update(id, {
       orderStatus: 'cancelled' as order_status,
