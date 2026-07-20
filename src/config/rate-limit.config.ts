@@ -14,7 +14,10 @@ export const rateLimitConfig = {
   get alias() {
     return {
       limit: parseInt(process.env.RATE_LIMIT_ALIAS_VALIDATION_MAX || '30', 10),
-      ttl: parseInt(process.env.RATE_LIMIT_ALIAS_VALIDATION_TTL_MS || '60000', 10),
+      ttl: parseInt(
+        process.env.RATE_LIMIT_ALIAS_VALIDATION_TTL_MS || '60000',
+        10,
+      ),
     };
   },
   get kycStart() {

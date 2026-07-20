@@ -1,4 +1,9 @@
-import { Injectable, Logger, ExecutionContext, HttpException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ExecutionContext,
+  HttpException,
+} from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerLimitDetail } from '@nestjs/throttler';
 import type { Request } from 'express';
 
@@ -6,12 +11,17 @@ import type { Request } from 'express';
 export class CustomThrottlerGuard extends ThrottlerGuard {
   private readonly customLogger = new Logger('RateLimiter');
 
-  protected async throwThrottlingException(
+  protected throwThrottlingException(
     context: ExecutionContext,
     throttlerLimitDetail: ThrottlerLimitDetail,
   ): Promise<void> {
-    const req = context.switchToHttp().getRequest<Request & { user?: any }>();
-    
+    const req = context.switchToHttp().getRequest<
+      Request & {
+        user?: { userId?: string; id?: string; publicKey?: string };
+        body?: { publicKey?: string };
+      }
+    >();
+
     // Structured logging for rate-limit violations
     this.customLogger.warn({
       message: 'Rate limit exceeded',
@@ -20,7 +30,10 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
       httpMethod: req.method,
       timestamp: new Date().toISOString(),
       userId: req.user?.userId || req.user?.id || 'anonymous',
-      publicKey: req.user?.publicKey || req.body?.publicKey || 'unknown',
+      publicKey:
+        req.user?.publicKey ||
+        (req.body as { publicKey?: string } | undefined)?.publicKey ||
+        'unknown',
       userAgent: req.get('user-agent') || 'unknown',
       limitDetail: throttlerLimitDetail,
     });

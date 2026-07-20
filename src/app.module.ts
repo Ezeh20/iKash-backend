@@ -39,13 +39,13 @@ import { StatsModule } from './modules/stats/stats.module';
     // (e.g. horizontally scaled), you MUST configure a shared storage provider like Redis
     // using @nestjs/throttler-storage-redis to ensure limits are enforced globally.
     ThrottlerModule.forRootAsync({
-      useFactory: () => ([
+      useFactory: () => [
         {
           name: 'default',
           ttl: parseInt(process.env.RATE_LIMIT_DEFAULT_TTL_MS || '60000', 10),
           limit: parseInt(process.env.RATE_LIMIT_DEFAULT_MAX || '100', 10),
         },
-      ]),
+      ],
     }),
   ],
   providers: [
