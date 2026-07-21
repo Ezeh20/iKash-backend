@@ -93,11 +93,17 @@
   },
   "overrides": {
     "debug": ">=4.3.1",
-    "form-data": "4.0.6"
+    "form-data": "4.0.6",
+    "baseline-browser-mapping": "2.10.7",
+    "browserslist": "4.28.1",
+    "electron-to-chromium": "1.5.313"
   },
   "pnpm": {
     "overrides": {
-      "form-data": "4.0.6"
+      "form-data": "4.0.6",
+      "baseline-browser-mapping": "2.10.7",
+      "browserslist": "4.28.1",
+      "electron-to-chromium": "1.5.313"
     }
   }
 }
