@@ -12,7 +12,7 @@ import {
 import { PaginationDto } from '../../common/pagination.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
-import { OfferService } from './offer.service';
+import { OfferService, type OfferFilter } from './offer.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { KycVerifiedGuard } from '../../common/kyc-verified.guard';
 
@@ -27,7 +27,7 @@ export class OfferController {
   }
 
   @Get()
-  list(@Query() p: PaginationDto, @Query() q: any) {
+  list(@Query() p: PaginationDto, @Query() q: OfferFilter) {
     return this.service.list(p, q);
   }
 
