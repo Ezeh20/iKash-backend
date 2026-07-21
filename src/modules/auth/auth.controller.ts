@@ -8,7 +8,8 @@ export class AuthController {
 
   /**
    * Endpoint for wallet-based login.
-   * Emits a temporary JWT based on the public key.
+   * Emits a user-scoped JWT for existing accounts, or a temporary wallet JWT
+   * for first-time users who have not yet created an account.
    */
   @Post('login')
   login(@Body('publicKey') publicKey: string) {

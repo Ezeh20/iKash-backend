@@ -32,11 +32,13 @@ interface AuthenticatedSocketData {
 }
 
 interface ChatServerEvents {
-  [ChatEvent.MESSAGE_CREATED]: (message: ChatMessage) => void;
+  [ChatEvent.MESSAGE_CREATED]: (message: CreatedChatMessage) => void;
   [ChatEvent.CHAT_ERROR]: (error: ChatError) => void;
   [ChatEvent.USER_JOINED]: (event: { orderId: string; userId: string }) => void;
   [ChatEvent.USER_LEFT]: (event: { orderId: string; userId: string }) => void;
 }
+
+type CreatedChatMessage = ChatMessage & { clientMessageId?: string };
 
 type ChatSocket = Socket<
   Record<string, never>,
@@ -159,7 +161,7 @@ export class ChatMessageGateway implements OnGatewayInit, OnGatewayConnection {
   async sendMessage(
     @ConnectedSocket() client: ChatSocket,
     @MessageBody() body: SendMessageDto,
-  ): Promise<ChatAck<ChatMessage>> {
+  ): Promise<ChatAck<CreatedChatMessage>> {
     const orderId = body?.orderId;
     if (!this.isValidOrderId(orderId)) {
       return this.fail(
@@ -208,8 +210,12 @@ export class ChatMessageGateway implements OnGatewayInit, OnGatewayConnection {
         senderId: client.data.userId,
         content,
       });
-      this.server.to(room).emit(ChatEvent.MESSAGE_CREATED, message);
-      return { ok: true, data: message };
+      const createdMessage: CreatedChatMessage = {
+        ...message,
+        clientMessageId: body.clientMessageId,
+      };
+      this.server.to(room).emit(ChatEvent.MESSAGE_CREATED, createdMessage);
+      return { ok: true, data: createdMessage };
     } catch (error) {
       this.logger.error(
         `Failed to persist chat message for order ${orderId}`,

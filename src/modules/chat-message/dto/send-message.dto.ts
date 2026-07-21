@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 export class OrderRoomDto {
   @IsUUID()
@@ -10,4 +16,8 @@ export class SendMessageDto extends OrderRoomDto {
   @IsNotEmpty()
   @MaxLength(4000)
   content: string;
+
+  @IsOptional()
+  @IsUUID()
+  clientMessageId?: string;
 }
