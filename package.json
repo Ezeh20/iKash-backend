@@ -30,7 +30,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@prisma/client": "^6.19.1",
     "@stellar/stellar-sdk": "^16.0.0",
-    "axios": "^1.13.6",
+    "axios": "^1.18.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
     "dotenv": "^17.3.1",
@@ -79,6 +79,9 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(\\.pnpm|@stellar|@noble|uint8array-extras|eventsource)/)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
