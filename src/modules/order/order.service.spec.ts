@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OrderRepository } from './order.repository';
 import { OrderService } from './order.service';
 import { EscrowService } from '../escrow/escrow.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('OrderService.cancel', () => {
   let service: OrderService;
@@ -29,6 +30,7 @@ describe('OrderService.cancel', () => {
         OrderService,
         { provide: OrderRepository, useValue: repo },
         { provide: EscrowService, useValue: {} },
+        { provide: AuditLogService, useValue: { create: jest.fn() } },
       ],
     }).compile();
 
