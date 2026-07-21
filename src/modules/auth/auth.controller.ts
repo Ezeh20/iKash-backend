@@ -1,23 +1,25 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { AppException, ErrorCode } from '../../common/errors';
+import { ChallengeDto } from './dto/challenge.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * Endpoint for wallet-based login.
-   * Emits a temporary JWT based on the public key.
+   * Endpoint to request a secure challenge for wallet authentication.
+   */
+  @Post('challenge')
+  async getChallenge(@Body() body: ChallengeDto) {
+    return this.authService.generateChallenge(body.publicKey);
+  }
+
+  /**
+   * Endpoint for secure wallet-based login using challenge-response flow.
    */
   @Post('login')
-  login(@Body('publicKey') publicKey: string) {
-    if (!publicKey) {
-      throw new AppException(
-        ErrorCode.MISSING_PUBLIC_KEY,
-        'Public key is required',
-      );
-    }
-    return this.authService.login(publicKey);
+  async login(@Body() body: LoginDto) {
+    return this.authService.verifyLogin(body.publicKey, body.challenge, body.signature);
   }
 }
