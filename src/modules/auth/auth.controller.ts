@@ -2,6 +2,7 @@
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { AppException } from '../../common/errors';
+import { ErrorCode } from '../../common/errors/error-codes.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
@@ -32,7 +33,10 @@ export class AuthController {
         userAgent: ctx.userAgent,
         metadata: { reason: 'missing_public_key' },
       });
-      throw new AppException('Public key is required');
+      throw new AppException(
+        ErrorCode.MISSING_PUBLIC_KEY,
+        'Public key is required',
+      );
     }
 
     return this.authService.login(publicKey, ctx);

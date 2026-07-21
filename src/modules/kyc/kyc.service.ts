@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import { kyc_status } from '@prisma/client';
@@ -154,10 +154,10 @@ export class KycService {
         data: { kycStatus, kycUpdatedAt: new Date() },
       });
       this.logger.log(
-        `[KYC WEBHOOK] ✅ Updated user ${userId} → kycStatus: ${updatedUser.kycStatus}`,
+        `[KYC WEBHOOK] âœ… Updated user ${userId} â†’ kycStatus: ${updatedUser.kycStatus}`,
       );
 
-      await this.auditLogService.create({
+      await this.auditLogService.createOrThrow({
         userId,
         action: AuditAction.KYC_STATUS_UPDATED,
         resourceType: 'User',
@@ -168,10 +168,10 @@ export class KycService {
     } catch (error) {
       const err = error as Error;
       this.logger.error(
-        `[KYC WEBHOOK] ❌ Failed to update user ${userId}: ${err.message}`,
+        `[KYC WEBHOOK] âŒ Failed to update user ${userId}: ${err.message}`,
       );
 
-      await this.auditLogService.create({
+      await this.auditLogService.createOrThrow({
         userId,
         action: AuditAction.KYC_STATUS_UPDATED,
         resourceType: 'User',
