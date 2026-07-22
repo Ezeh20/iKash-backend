@@ -204,3 +204,15 @@ model Waitlist {
 
   @@map("waitlist")
 }
+
+model AuthChallenge {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicKey String   @map("public_key")
+  challenge String   @unique
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([publicKey])
+  @@map("auth_challenge")
+}
