@@ -26,6 +26,9 @@ describe('AuthService', () => {
       updateMany: jest.fn(),
       deleteMany: jest.fn(),
     },
+    appUser: {
+      upsert: jest.fn(),
+    },
   };
 
   const jwtMock = { sign: jest.fn().mockReturnValue('signed-jwt') };
@@ -33,6 +36,8 @@ describe('AuthService', () => {
 
   const keypair = Keypair.random();
   const publicKey = keypair.publicKey();
+
+  const provisionedUser = { userId: 'user-1', publicKey };
 
   const buildStored = (
     overrides: Partial<StoredChallenge> = {},
@@ -73,6 +78,7 @@ describe('AuthService', () => {
     configMock.get.mockReturnValue(undefined);
     prismaMock.authChallenge.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.authChallenge.deleteMany.mockResolvedValue({ count: 0 });
+    prismaMock.appUser.upsert.mockResolvedValue(provisionedUser);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -164,9 +170,17 @@ describe('AuthService', () => {
         signature: signChallenge(stored.challenge),
       });
 
-      expect(result).toEqual({ access_token: 'signed-jwt' });
+      expect(result).toEqual({
+        access_token: 'signed-jwt',
+        user: provisionedUser,
+      });
+      expect(prismaMock.appUser.upsert).toHaveBeenCalledWith({
+        where: { publicKey },
+        create: { publicKey },
+        update: {},
+      });
       expect(jwtMock.sign).toHaveBeenCalledWith({
-        sub: publicKey,
+        sub: provisionedUser.userId,
         publicKey,
       });
       expect(prismaMock.authChallenge.updateMany).toHaveBeenCalledWith(

@@ -96,6 +96,27 @@ class FakePrismaService {
       return Promise.resolve({ count: 1 });
     },
   };
+
+  readonly users = new Map<string, { userId: string; publicKey: string }>();
+
+  appUser = {
+    upsert: ({
+      where,
+      create,
+    }: {
+      where: { publicKey: string };
+      create: { publicKey: string };
+      update: Record<string, never>;
+    }): Promise<{ userId: string; publicKey: string }> => {
+      const existing = this.users.get(where.publicKey);
+      const user = existing ?? {
+        userId: `user-${this.users.size + 1}`,
+        publicKey: create.publicKey,
+      };
+      this.users.set(where.publicKey, user);
+      return Promise.resolve(user);
+    },
+  };
 }
 
 describe('Auth challenge-response flow (e2e)', () => {

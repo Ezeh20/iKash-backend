@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
+import { AppUser } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
@@ -63,7 +64,9 @@ export class AuthService {
    * Step 2 of wallet authentication: verifies the signed challenge and issues
    * a temporary JWT only if the signature proves ownership of the wallet.
    */
-  async login(dto: LoginDto): Promise<{ access_token: string }> {
+  async login(
+    dto: LoginDto,
+  ): Promise<{ access_token: string; user: AppUser }> {
     const { publicKey, challenge, signature } = dto;
     this.assertValidPublicKey(publicKey);
 
@@ -128,12 +131,19 @@ export class AuthService {
       );
     }
 
+    const user = await this.prisma.appUser.upsert({
+      where: { publicKey },
+      create: { publicKey },
+      update: {},
+    });
+
     const payload: { sub: string; publicKey: string } = {
-      sub: publicKey,
+      sub: user.userId,
       publicKey,
     };
     return {
       access_token: this.jwtService.sign(payload),
+      user,
     };
   }
 
