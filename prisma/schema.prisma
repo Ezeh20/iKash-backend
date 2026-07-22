@@ -13,6 +13,7 @@ model AppUser {
   publicKey            String           @unique @map("public_key")
   alias                String?          @unique @map("alias")
   username             String?          @map("username")
+  role                 app_role         @default(user) @map("role")
   kycStatus            kyc_status       @default(pending) @map("kyc_status")
   kycUpdatedAt         DateTime?        @map("kyc_updated_at") @db.Timestamptz(6)
   totalVolume          Decimal          @default(0) @map("total_volume") @db.Decimal(20, 7)
@@ -141,6 +142,12 @@ model payment_provider {
   @@index([type], map: "idx_payment_provider_type")
 }
 
+enum app_role {
+  user
+  admin
+  support
+}
+
 enum kyc_status {
   pending
   approved
@@ -188,6 +195,18 @@ enum payment_provider_type {
   MOBILE
   PLATFORM
   BANK
+}
+
+model AuthChallenge {
+  challengeId String    @id @default(dbgenerated("gen_random_uuid()")) @map("challenge_id") @db.Uuid
+  publicKey   String    @unique @map("public_key")
+  challenge   String
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt      DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([expiresAt])
+  @@map("auth_challenge")
 }
 
 model Waitlist {
