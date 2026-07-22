@@ -41,7 +41,7 @@ export class AuthService {
   /**
    * Verifies the signature of the challenge
    */
-  async verifyLogin(publicKey: string, challenge: string, signature: string): Promise<{ access_token: string; user: any }> {
+  async verifyLogin(publicKey: string, challenge: string, signature: string): Promise<{ access_token: string; user: import('@prisma/client').AppUser }> {
     const authChallenge = await this.prisma.authChallenge.findUnique({
       where: { challenge },
     });
