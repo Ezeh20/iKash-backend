@@ -17,7 +17,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.js",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.21.0",
@@ -77,10 +78,21 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "allowJs": true,
+            "module": "commonjs",
+            "moduleResolution": "node",
+            "resolvePackageJsonExports": false
+          }
+        }
+      ]
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(\\.pnpm|@stellar|@noble|uint8array-extras|eventsource)/)"
+      "node_modules/\\.pnpm/(?!(@stellar|@noble|@scure|uint8array-extras|eventsource)[@+])",
+      "node_modules/(?!(\\.pnpm|@stellar|@noble|@scure|uint8array-extras|eventsource)/)"
     ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
@@ -93,11 +105,17 @@
   },
   "overrides": {
     "debug": ">=4.3.1",
-    "form-data": "4.0.6"
+    "form-data": "4.0.6",
+    "baseline-browser-mapping": "2.10.7",
+    "browserslist": "4.28.1",
+    "electron-to-chromium": "1.5.313"
   },
   "pnpm": {
     "overrides": {
-      "form-data": "4.0.6"
+      "form-data": "4.0.6",
+      "baseline-browser-mapping": "2.10.7",
+      "browserslist": "4.28.1",
+      "electron-to-chromium": "1.5.313"
     }
   }
 }
