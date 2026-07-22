@@ -62,10 +62,12 @@ describe('Rate Limiting (e2e)', () => {
     await request(app.getHttpServer()).get('/test/global').expect(200);
     await request(app.getHttpServer()).get('/test/global').expect(200);
     await request(app.getHttpServer()).get('/test/global').expect(200);
-    
+
     const res = await request(app.getHttpServer()).get('/test/global');
     expect(res.status).toBe(429);
-    expect(res.body.message).toBe('Too many requests. Please try again later.');
+    expect((res.body as { message: string }).message).toBe(
+      'Too many requests. Please try again later.',
+    );
   });
 
   it('should skip rate limits for @SkipThrottle routes', async () => {
@@ -78,9 +80,11 @@ describe('Rate Limiting (e2e)', () => {
     // 2 requests allowed, 3rd fails
     await request(app.getHttpServer()).get('/test/strict').expect(200);
     await request(app.getHttpServer()).get('/test/strict').expect(200);
-    
+
     const res = await request(app.getHttpServer()).get('/test/strict');
     expect(res.status).toBe(429);
-    expect(res.body.message).toBe('Too many requests. Please try again later.');
+    expect((res.body as { message: string }).message).toBe(
+      'Too many requests. Please try again later.',
+    );
   });
 });

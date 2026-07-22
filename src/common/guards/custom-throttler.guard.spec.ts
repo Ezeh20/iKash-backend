@@ -37,9 +37,11 @@ describe('CustomThrottlerGuard', () => {
         timeToBlockExpire: 100,
       };
 
-      // Spying on the private logger to ensure it logs properly without crashing
+      const guardWithLogger = guard as unknown as {
+        customLogger: { warn: jest.Mock };
+      };
       const loggerSpy = jest
-        .spyOn((guard as any).customLogger, 'warn')
+        .spyOn(guardWithLogger.customLogger, 'warn')
         .mockImplementation(() => {});
 
       expect(() =>
@@ -50,10 +52,14 @@ describe('CustomThrottlerGuard', () => {
       ).toThrow(HttpException);
 
       try {
-        guard['throwThrottlingException'](mockExecutionContext, mockLimitDetail);
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(429);
-        expect(err.getResponse()).toMatchObject({
+        await guard['throwThrottlingException'](
+          mockExecutionContext,
+          mockLimitDetail,
+        );
+      } catch (err: unknown) {
+        const httpError = err as HttpException;
+        expect(httpError.getStatus()).toBe(429);
+        expect(httpError.getResponse()).toMatchObject({
           statusCode: 429,
           message: 'Too many requests. Please try again later.',
           error: 'Too Many Requests',
@@ -99,8 +105,11 @@ describe('CustomThrottlerGuard', () => {
         timeToBlockExpire: 100,
       };
 
+      const guardWithLogger = guard as unknown as {
+        customLogger: { warn: jest.Mock };
+      };
       const loggerSpy = jest
-        .spyOn((guard as any).customLogger, 'warn')
+        .spyOn(guardWithLogger.customLogger, 'warn')
         .mockImplementation(() => {});
 
       try {
@@ -108,7 +117,7 @@ describe('CustomThrottlerGuard', () => {
           mockExecutionContext,
           mockLimitDetail,
         );
-      } catch (e) {
+      } catch {
         // expected exception
       }
 
