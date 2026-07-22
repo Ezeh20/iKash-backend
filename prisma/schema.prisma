@@ -190,22 +190,22 @@ enum payment_provider_type {
   BANK
 }
 
+model AuthChallenge {
+  challengeId String    @id @default(dbgenerated("gen_random_uuid()")) @map("challenge_id") @db.Uuid
+  publicKey   String    @unique @map("public_key")
+  challenge   String
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt      DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([expiresAt])
+  @@map("auth_challenge")
+}
+
 model Waitlist {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email     String   @unique
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("waitlist")
-}
-
-model AuthChallenge {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  publicKey String   @map("public_key")
-  challenge String   @unique
-  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@index([publicKey])
-  @@map("auth_challenge")
 }

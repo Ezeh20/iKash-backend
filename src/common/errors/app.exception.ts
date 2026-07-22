@@ -19,7 +19,6 @@ export function errorCodeToHttpStatus(code: ErrorCode): HttpStatus {
   const map: Partial<Record<ErrorCode, HttpStatus>> = {
     // ── 400 Bad Request ──────────────────────────────────────────────
     [ErrorCode.INVALID_WALLET]: HttpStatus.BAD_REQUEST,
-    [ErrorCode.MISSING_PUBLIC_KEY]: HttpStatus.BAD_REQUEST,
     [ErrorCode.INVALID_EMAIL]: HttpStatus.BAD_REQUEST,
     [ErrorCode.MISSING_EMAIL]: HttpStatus.BAD_REQUEST,
     [ErrorCode.MISSING_USER_ID]: HttpStatus.BAD_REQUEST,
@@ -46,6 +45,11 @@ export function errorCodeToHttpStatus(code: ErrorCode): HttpStatus {
 
     // ── 401 Unauthorized ─────────────────────────────────────────────
     [ErrorCode.KYC_WEBHOOK_INVALID_SIGNATURE]: HttpStatus.UNAUTHORIZED,
+    [ErrorCode.INVALID_CHALLENGE]: HttpStatus.UNAUTHORIZED,
+    [ErrorCode.INVALID_SIGNATURE]: HttpStatus.UNAUTHORIZED,
+
+    // ── 429 Too Many Requests ─────────────────────────────────────────
+    [ErrorCode.TOO_MANY_REQUESTS]: HttpStatus.TOO_MANY_REQUESTS,
 
     // ── 403 Forbidden ─────────────────────────────────────────────────
     [ErrorCode.UNAUTHORIZED_ACTION]: HttpStatus.FORBIDDEN,
