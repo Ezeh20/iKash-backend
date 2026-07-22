@@ -20,7 +20,7 @@ export class AuthService {
     // Validate stellar public key
     try {
       Keypair.fromPublicKey(publicKey);
-    } catch (e) {
+    } catch {
       throw new AppException(ErrorCode.MISSING_PUBLIC_KEY, 'Invalid Stellar public key');
     }
 
@@ -47,31 +47,31 @@ export class AuthService {
     });
 
     if (!authChallenge) {
-      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Challenge not found');
+      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Challenge not found');
     }
 
     if (authChallenge.used) {
-      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Challenge already used');
+      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Challenge already used');
     }
 
     if (new Date() > authChallenge.expiresAt) {
-      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Challenge expired');
+      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Challenge expired');
     }
 
     if (authChallenge.publicKey !== publicKey) {
-      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Public key mismatch');
+      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Public key mismatch');
     }
 
     let isValid = false;
     try {
       const kp = Keypair.fromPublicKey(publicKey);
       isValid = kp.verify(Buffer.from(challenge), Buffer.from(signature, 'base64'));
-    } catch (error) {
+    } catch {
       isValid = false;
     }
 
     if (!isValid) {
-      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Invalid signature');
+      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Invalid signature');
     }
 
     // Mark challenge as used
