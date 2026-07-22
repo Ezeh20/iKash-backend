@@ -25,6 +25,7 @@ export enum ErrorCode {
   // ── Order ────────────────────────────────────────────────────────────
   ORDER_NOT_FOUND = 'ORDER_NOT_FOUND',
   INVALID_ORDER_STATUS = 'INVALID_ORDER_STATUS',
+  ORDER_CANCELLATION_NOT_ALLOWED = 'ORDER_CANCELLATION_NOT_ALLOWED',
 
   // ── Escrow ───────────────────────────────────────────────────────────
   ESCROW_NOT_FOUND = 'ESCROW_NOT_FOUND',
