@@ -8,7 +8,10 @@ import {
   Post,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { AppException, ErrorCode } from '../../common/errors';
 import { PaginationDto } from '../../common/pagination.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
@@ -22,7 +25,16 @@ export class OfferController {
 
   @Post()
   @UseGuards(JwtAuthGuard, KycVerifiedGuard)
-  create(@Body() dto: CreateOfferDto) {
+  create(
+    @Body() dto: CreateOfferDto,
+    @Req() req: Request & { user: { userId: string } },
+  ) {
+    if (dto.creatorId !== req.user.userId) {
+      throw new AppException(
+        ErrorCode.UNAUTHORIZED_ACTION,
+        'You can only create offers for yourself'
+      );
+    }
     return this.service.create(dto);
   }
 

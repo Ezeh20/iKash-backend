@@ -16,7 +16,11 @@ import { OrderService } from './order.service';
 import type { OrderFilter } from './order.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { KycVerifiedGuard } from '../../common/kyc-verified.guard';
+import { ResourceOwnerGuard } from '../../common/guards/resource-owner.guard';
+import { ResourceOwner } from '../../common/decorators/resource-owner.decorator';
+import { ResourceType } from '../../common/interfaces/resource-owner.interface';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AppException, ErrorCode } from '../../common/errors';
 
 @Controller('orders')
 export class OrderController {
@@ -24,7 +28,16 @@ export class OrderController {
 
   @Post()
   @UseGuards(JwtAuthGuard, KycVerifiedGuard)
-  create(@Body() dto: CreateOrderDto) {
+  create(
+    @Body() dto: CreateOrderDto,
+    @CurrentUser() user: { userId: string },
+  ) {
+    if (dto.buyerId !== user.userId && dto.sellerId !== user.userId) {
+      throw new AppException(
+        ErrorCode.UNAUTHORIZED_ACTION,
+        'You can only create an order where you are the buyer or the seller'
+      );
+    }
     return this.service.create(dto);
   }
 
@@ -51,18 +64,22 @@ export class OrderController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, ResourceOwnerGuard)
+  @ResourceOwner(ResourceType.ORDER)
   get(@Param('id') id: string) {
     return this.service.get(id);
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, KycVerifiedGuard)
+  @UseGuards(JwtAuthGuard, KycVerifiedGuard, ResourceOwnerGuard)
+  @ResourceOwner(ResourceType.ORDER)
   update(@Param('id') id: string, @Body() dto: UpdateOrderDto) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, KycVerifiedGuard)
+  @UseGuards(JwtAuthGuard, KycVerifiedGuard, ResourceOwnerGuard)
+  @ResourceOwner(ResourceType.ORDER)
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }
