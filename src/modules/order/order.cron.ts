@@ -10,15 +10,14 @@ export class OrderCron {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async expireOrders() {
-    this.logger.log('Starting automated order expiration job...');
     try {
       await this.orderService.expireOrders();
-      this.logger.log('Automated order expiration job completed.');
     } catch (error) {
-      this.logger.error(
-        'Failed to execute automated order expiration job:',
-        error,
-      );
+      const err = error as Error;
+      this.logger.error('order.cron.expiration.failed', {
+        error: err.message,
+        stack: err.stack,
+      });
     }
   }
 }
