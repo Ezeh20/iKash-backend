@@ -95,7 +95,7 @@
       ]
     },
     "transformIgnorePatterns": [
-      "node_modules/(?!\\.pnpm|@stellar|@noble|stellar-sdk)"
+      "node_modules/(?!\\.pnpm|@stellar|@noble|stellar-sdk|uint8array-extras)",
       "node_modules/\\.pnpm/(?!(@stellar|@noble|@scure|uint8array-extras|eventsource)[@+])",
       "node_modules/(?!(\\.pnpm|@stellar|@noble|@scure|uint8array-extras|eventsource)/)"
     ],
