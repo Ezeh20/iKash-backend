@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { HttpStatus } from '@nestjs/common';
 import { Keypair } from '@stellar/stellar-sdk';
+import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
@@ -53,6 +54,16 @@ describe('AuthService', () => {
 
   const signChallenge = (challenge: string, signer: Keypair = keypair) =>
     signer.sign(Buffer.from(challenge, 'utf8')).toString('base64');
+
+  const signSep53Challenge = (challenge: string, signer: Keypair = keypair) => {
+    const payload = Buffer.concat([
+      Buffer.from('Stellar Signed Message:\n', 'utf8'),
+      Buffer.from(challenge, 'utf8'),
+    ]);
+    return signer
+      .sign(createHash('sha256').update(payload).digest())
+      .toString('base64');
+  };
 
   const expectAppException = async (
     promise: Promise<unknown>,
@@ -160,6 +171,22 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
+    it('issues a JWT for a SEP-53 wallet signature', async () => {
+      const stored = buildStored();
+      prismaMock.authChallenge.findUnique.mockResolvedValue(stored);
+
+      const result = await service.login({
+        publicKey,
+        challenge: stored.challenge,
+        signature: signSep53Challenge(stored.challenge),
+      });
+
+      expect(result).toEqual({
+        access_token: 'signed-jwt',
+        user: provisionedUser,
+      });
+    });
+
     it('issues a JWT for a correctly signed challenge', async () => {
       const stored = buildStored();
       prismaMock.authChallenge.findUnique.mockResolvedValue(stored);
