@@ -303,25 +303,32 @@ export class OrderService {
   }
 
   /**
-   * Processes a single expired order through validation, status transition, and audit logging.
+   * Processes a single expired order through validation, escrow verification, status transition, and audit logging.
    *
-   * Detailed Logic and Process:
-   * 1. **Escrow Verification**:
-   *    - Check if an associated `EscrowOnChain` record exists.
-   *    - Escrows in `fiat_sent`, `released`, `disputed`, or `resolved` status indicate that the buyer
-   *      has already transferred fiat funds. These orders MUST NOT be automatically expired or cancelled
-   *      because fiat payment has moved; doing so could cause loss of funds or inconsistencies.
-   *    - Orders with escrows in `funded`, `initialized`, or `pending` status where fiat has NOT been sent
-   *      can still be safely expired or cancelled if the time limit expires.
-   *    - If an on-chain contract ID exists, verify the contract balance via `EscrowService.getOnChainEscrowBalance`.
+   * @description
+   * Process & Logic Behind Expiring Orders and Escrows:
+   * 1. **Expiration Trigger & Time Window**:
+   *    - Orders are evaluated when their `expiresAt` timestamp is strictly less than the current execution time (`now`).
+   *    - Only active candidate orders in `created` or `locked` statuses are processed.
    *
-   * 2. **Status Transition Mapping**:
-   *    - `created` -> `expired`: Un-funded / initial state order that timed out before locking.
-   *    - `locked` -> `cancelled`: Order where escrow was locked/initialized, but expired before fiat was sent.
+   * 2. **Escrow State Safety & Protection**:
+   *    - If an associated `EscrowOnChain` record exists, the job evaluates whether funds or fiat actions have occurred.
+   *    - **Protected Escrows (`fiat_sent`, `released`, `disputed`, `resolved`)**: If the buyer has already marked fiat payment as sent (`fiat_sent`),
+   *      or if the trade is in dispute/release, automatic expiration IS BLOCKED. This prevents buyer fiat loss where money was sent in real life
+   *      but the order timer ran out.
+   *    - **Eligible Escrows (`initialized`, `pending`, `funded`)**: If escrow is in initial state or seller-funded, BUT fiat was NOT marked as sent,
+   *      the order is safe for automated cancellation/expiration.
+   *    - **On-Chain Balance Verification**: Calls `EscrowService.getOnChainEscrowBalance` to double check on-chain contract state.
    *
-   * 3. **Database Update & Audit Logging**:
-   *    - Update `orderStatus` in Prisma database.
-   *    - Write structured event logs for audit traceability (`order.expiration.audit`) and user notification (`order.expiration.notification.sent`).
+   * 3. **Status Transition Rules**:
+   *    - `created` -> `expired`: Initial order state without active escrow locks. Set to `expired`.
+   *    - `locked` -> `cancelled`: Order where escrow was initialized/locked by seller, but timed out before buyer fiat payment. Set to `cancelled`.
+   *
+   * 4. **Persistence & Structured Event Logging**:
+   *    - Updates `orderStatus` in the database.
+   *    - Emits structured event logs for audit trailing (`order.expiration.audit`) and user notification (`order.expiration.notification.sent`).
+   *
+   * @param order - Expired order record including buyer, seller, and escrow relations.
    */
   private async processExpiredOrder(
     order: ExpiredOrderWithRelations,
