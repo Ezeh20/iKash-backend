@@ -116,29 +116,33 @@ describe('Order Expiration Flow (e2e)', () => {
 
   afterAll(async () => {
     // Cleanup seeded tests data
-    await prisma.order.deleteMany({
-      where: {
-        buyerId,
-        sellerId,
-      },
-    });
-    await prisma.offer.deleteMany({
-      where: {
-        creatorId: sellerId,
-      },
-    });
-    await prisma.appUser.deleteMany({
-      where: {
-        userId: {
-          in: [buyerId, sellerId],
+    if (buyerId && sellerId) {
+      await prisma.order.deleteMany({
+        where: {
+          buyerId,
+          sellerId,
         },
-      },
-    });
+      });
+      await prisma.offer.deleteMany({
+        where: {
+          creatorId: sellerId,
+        },
+      });
+      await prisma.appUser.deleteMany({
+        where: {
+          userId: {
+            in: [buyerId, sellerId],
+          },
+        },
+      });
+    }
 
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
-  it('should expire and cancel correct orders while ignoring funded/future ones', async () => {
+  it('should expire and cancel correct orders while ignoring protected/future ones', async () => {
     const now = new Date();
 
     // 1. Order A: expired, 'created' status, no escrow -> should become 'expired'
@@ -190,7 +194,7 @@ describe('Order Expiration Flow (e2e)', () => {
       },
     });
 
-    // 4. Order D: expired but has funded status in DB -> should remain unchanged
+    // 4. Order D: expired but has fiat_sent status in DB -> should remain protected/unchanged
     const orderD = await prisma.order.create({
       data: {
         offerId,
@@ -209,7 +213,7 @@ describe('Order Expiration Flow (e2e)', () => {
         buyerAddress: 'GBUYERE2ETESTINGPUBLICKEYFORORDEREXPIRATION12345',
         sellerAddress: 'GSELLERE2ETESTINGPUBLICKEYFORORDEREXPIRATION12345',
         amount: 40,
-        escrowStatus: 'funded',
+        escrowStatus: 'fiat_sent',
       },
     });
 
@@ -230,7 +234,7 @@ describe('Order Expiration Flow (e2e)', () => {
       'CCONTACTE2EORDERB',
     );
 
-    // Verify on-chain balance was NOT checked for Order D (skipped at DB level due to funded status)
+    // Verify on-chain balance was NOT checked for Order D (skipped at DB level due to fiat_sent status)
     expect(twServiceMock.getEscrowBalance).not.toHaveBeenCalledWith(
       'CCONTACTE2EORDERD',
     );
@@ -265,6 +269,6 @@ describe('Order Expiration Flow (e2e)', () => {
     const escrowDAfter = await prisma.escrowOnChain.findFirst({
       where: { orderId: orderD.orderId },
     });
-    expect(escrowDAfter.escrowStatus).toBe('funded');
+    expect(escrowDAfter.escrowStatus).toBe('fiat_sent');
   });
 });

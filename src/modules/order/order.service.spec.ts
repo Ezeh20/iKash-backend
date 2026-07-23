@@ -15,9 +15,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
     };
   };
   let escrowServiceMock: {
-    tw: {
-      getEscrowBalance: jest.Mock;
-    };
+    getOnChainEscrowBalance: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -29,9 +27,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
     };
 
     escrowServiceMock = {
-      tw: {
-        getEscrowBalance: jest.fn(),
-      },
+      getOnChainEscrowBalance: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -118,7 +114,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
     };
 
     prismaMock.order.findMany.mockResolvedValue([expiredOrder]);
-    escrowServiceMock.tw.getEscrowBalance.mockResolvedValue([
+    escrowServiceMock.getOnChainEscrowBalance.mockResolvedValue([
       { address: 'C_CONTRACT_2', balance: 0 },
     ]);
     prismaMock.order.update.mockResolvedValue({
@@ -128,7 +124,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
 
     await service.expireOrders();
 
-    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith(
+    expect(escrowServiceMock.getOnChainEscrowBalance).toHaveBeenCalledWith(
       'C_CONTRACT_2',
     );
     expect(prismaMock.order.update).toHaveBeenCalledWith({
@@ -137,7 +133,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
     });
   });
 
-  it('should skip order expiration if the escrow status is marked as funded in the database', async () => {
+  it('should skip order expiration if the escrow status is fiat_sent or beyond', async () => {
     const expiredOrder = {
       orderId: 'order-3',
       orderStatus: 'locked',
@@ -157,7 +153,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       escrow: {
         escrowId: 'escrow-3',
         contractId: 'C_CONTRACT_3',
-        escrowStatus: 'funded',
+        escrowStatus: 'fiat_sent',
       },
     };
 
@@ -165,11 +161,11 @@ describe('OrderService - Expiration and Cancellation Job', () => {
 
     await service.expireOrders();
 
-    expect(escrowServiceMock.tw.getEscrowBalance).not.toHaveBeenCalled();
+    expect(escrowServiceMock.getOnChainEscrowBalance).not.toHaveBeenCalled();
     expect(prismaMock.order.update).not.toHaveBeenCalled();
   });
 
-  it('should skip order expiration if the escrow contract has on-chain balance even if DB is initialized', async () => {
+  it('should allow expiration/cancellation of a funded escrow if fiat payment was not sent', async () => {
     const expiredOrder = {
       orderId: 'order-4',
       orderStatus: 'locked',
@@ -189,21 +185,28 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       escrow: {
         escrowId: 'escrow-4',
         contractId: 'C_CONTRACT_4',
-        escrowStatus: 'initialized',
+        escrowStatus: 'funded',
       },
     };
 
     prismaMock.order.findMany.mockResolvedValue([expiredOrder]);
-    escrowServiceMock.tw.getEscrowBalance.mockResolvedValue([
+    escrowServiceMock.getOnChainEscrowBalance.mockResolvedValue([
       { address: 'C_CONTRACT_4', balance: 5.5 },
     ]);
+    prismaMock.order.update.mockResolvedValue({
+      ...expiredOrder,
+      orderStatus: 'cancelled',
+    });
 
     await service.expireOrders();
 
-    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith(
+    expect(escrowServiceMock.getOnChainEscrowBalance).toHaveBeenCalledWith(
       'C_CONTRACT_4',
     );
-    expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.update).toHaveBeenCalledWith({
+      where: { orderId: 'order-4' },
+      data: { orderStatus: 'cancelled' },
+    });
   });
 
   it('should proceed to cancel if checking on-chain balance fails but DB status is initialized', async () => {
@@ -231,7 +234,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
     };
 
     prismaMock.order.findMany.mockResolvedValue([expiredOrder]);
-    escrowServiceMock.tw.getEscrowBalance.mockRejectedValue(
+    escrowServiceMock.getOnChainEscrowBalance.mockRejectedValue(
       new Error('Network error'),
     );
     prismaMock.order.update.mockResolvedValue({
@@ -241,7 +244,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
 
     await service.expireOrders();
 
-    expect(escrowServiceMock.tw.getEscrowBalance).toHaveBeenCalledWith(
+    expect(escrowServiceMock.getOnChainEscrowBalance).toHaveBeenCalledWith(
       'C_CONTRACT_5',
     );
     expect(prismaMock.order.update).toHaveBeenCalledWith({
@@ -307,6 +310,7 @@ describe('OrderService - Expiration and Cancellation Job', () => {
       data: { orderStatus: 'expired' },
     });
   });
+});
 
 describe('OrderService.cancel', () => {
   let service: OrderService;
@@ -327,8 +331,14 @@ describe('OrderService.cancel', () => {
     repo = {
       findById: jest.fn(),
       update: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        OrderService,
         { provide: OrderRepository, useValue: repo },
         { provide: EscrowService, useValue: {} },
+        { provide: PrismaService, useValue: {} },
       ],
     }).compile();
 
