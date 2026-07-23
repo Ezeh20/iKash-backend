@@ -48,10 +48,18 @@ export class EscrowService {
 
   constructor(
     private readonly repo: EscrowRepository,
-    public readonly tw: TrustlessWorkService,
+    private readonly tw: TrustlessWorkService,
     private readonly config: ConfigService,
     private readonly fileStorage: FileStorageService,
   ) {}
+
+  /**
+   * Helper method to query on-chain balance for a given escrow contract address.
+   * Encapsulates TrustlessWorkService calls to maintain separation of concerns.
+   */
+  async getOnChainEscrowBalance(contractId: string) {
+    return this.tw.getEscrowBalance(contractId);
+  }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
