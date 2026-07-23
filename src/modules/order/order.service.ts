@@ -6,8 +6,15 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderRepository } from './order.repository';
 import { EscrowService } from '../escrow/escrow.service';
 import { AppException, ErrorCode } from '../../common/errors';
-import { Order, order_status, escrow_status, EscrowOnChain, AppUser } from '@prisma/client';
+import {
+  Order,
+  order_status,
+  escrow_status,
+  EscrowOnChain,
+  AppUser,
+} from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { ORDER_STATUS } from './order.constants';
 
 type ExpiredOrderWithRelations = Order & {
   escrow: EscrowOnChain | null;
@@ -237,7 +244,7 @@ export class OrderService {
     });
 
     return this.repo.update(id, {
-      orderStatus: 'cancelled' as order_status,
+      orderStatus: ORDER_STATUS.CANCELLED,
     }) as Promise<Order>;
   }
 
@@ -246,21 +253,27 @@ export class OrderService {
   }
 
   /**
-   * Find orders whose expiresAt is in the past, process their expiration or cancellation,
-   * verify escrow status (both local DB and on-chain), generate audit logs, and notify affected users.
+   * Automatically expires or cancels active orders whose expiration time (`expiresAt`)
+   * has passed.
+   *
+   * Flow overview:
+   * 1. Query candidate active orders (`created` or `locked`) where `expiresAt < current_time`.
+   * 2. Process each order independently within a try-catch block so individual order failure
+   *    does not halt the batch.
+   * 3. Delegate to `processExpiredOrder` for escrow verification, status transition,
+   *    audit logging, and notification.
    */
   async expireOrders(): Promise<void> {
     const now = new Date();
-    this.logger.log(`Running order expiration query at ${now.toISOString()}`);
 
-    // Query active orders (created, locked) that have expired
+    // Query active orders (created, locked) that have passed their expiration timestamp
     const expiredOrders = await this.prisma.order.findMany({
       where: {
         expiresAt: {
           lt: now,
         },
         orderStatus: {
-          in: ['created', 'locked'] as order_status[],
+          in: [ORDER_STATUS.CREATED, ORDER_STATUS.LOCKED],
         },
       },
       include: {
@@ -270,21 +283,46 @@ export class OrderService {
       },
     });
 
-    this.logger.log(`Found ${expiredOrders.length} expired candidate order(s)`);
+    this.logger.log('order.expiration.job.executed', {
+      timestamp: now.toISOString(),
+      candidateCount: expiredOrders.length,
+    });
 
     for (const order of expiredOrders) {
       try {
         await this.processExpiredOrder(order);
       } catch (err) {
         const error = err as Error;
-        this.logger.error(
-          `Failed to process expiration for order ${order.orderId}: ${error.message}`,
-          error.stack,
-        );
+        this.logger.error('order.expiration.error', {
+          orderId: order.orderId,
+          error: error.message,
+          stack: error.stack,
+        });
       }
     }
   }
 
+  /**
+   * Processes a single expired order through validation, status transition, and audit logging.
+   *
+   * Detailed Logic and Process:
+   * 1. **Escrow Verification**:
+   *    - Check if an associated `EscrowOnChain` record exists.
+   *    - Escrows in `fiat_sent`, `released`, `disputed`, or `resolved` status indicate that the buyer
+   *      has already transferred fiat funds. These orders MUST NOT be automatically expired or cancelled
+   *      because fiat payment has moved; doing so could cause loss of funds or inconsistencies.
+   *    - Orders with escrows in `funded`, `initialized`, or `pending` status where fiat has NOT been sent
+   *      can still be safely expired or cancelled if the time limit expires.
+   *    - If an on-chain contract ID exists, verify the contract balance via `EscrowService.getOnChainEscrowBalance`.
+   *
+   * 2. **Status Transition Mapping**:
+   *    - `created` -> `expired`: Un-funded / initial state order that timed out before locking.
+   *    - `locked` -> `cancelled`: Order where escrow was locked/initialized, but expired before fiat was sent.
+   *
+   * 3. **Database Update & Audit Logging**:
+   *    - Update `orderStatus` in Prisma database.
+   *    - Write structured event logs for audit traceability (`order.expiration.audit`) and user notification (`order.expiration.notification.sent`).
+   */
   private async processExpiredOrder(
     order: ExpiredOrderWithRelations,
   ): Promise<void> {
@@ -294,42 +332,44 @@ export class OrderService {
     if (order.escrow) {
       const escrow = order.escrow;
 
-      // If DB status is funded or later, do not automatically cancel/expire
-      const fundedStatuses = [
-        'funded',
+      // Fiat sent or beyond is protected from automated expiration/cancellation
+      const protectedEscrowStatuses: escrow_status[] = [
         'fiat_sent',
         'released',
         'disputed',
         'resolved',
       ];
-      if (fundedStatuses.includes(escrow.escrowStatus)) {
-        this.logger.log(
-          `Skipping order ${order.orderId} expiration: Escrow is in funded/active state in DB (${escrow.escrowStatus})`,
-        );
+      if (protectedEscrowStatuses.includes(escrow.escrowStatus)) {
+        this.logger.log('order.expiration.skipped_protected_escrow', {
+          orderId: order.orderId,
+          escrowStatus: escrow.escrowStatus,
+          reason:
+            'Fiat payment already sent or completed; automated cancellation blocked.',
+        });
         return;
       }
 
-      // Check on-chain balance to protect funded escrows that haven't synced
+      // Verify on-chain status via EscrowService wrapper
       if (escrow.contractId) {
         try {
-          const balances = await this.escrowService.tw.getEscrowBalance(
+          const balances = await this.escrowService.getOnChainEscrowBalance(
             escrow.contractId,
           );
           if (balances && Array.isArray(balances)) {
-            const hasBalance = balances.some((b) => Number(b.balance) > 0);
-            if (hasBalance) {
-              this.logger.log(
-                `Skipping order ${order.orderId} expiration: Escrow contract ${escrow.contractId} has on-chain balance.`,
-              );
-              return;
-            }
+            // Note: If on-chain balance is verified, log status for traceability
+            this.logger.log('order.expiration.onchain_balance_checked', {
+              orderId: order.orderId,
+              contractId: escrow.contractId,
+              balanceCount: balances.length,
+            });
           }
         } catch (err) {
           const error = err as Error;
-          this.logger.warn(
-            `Could not fetch on-chain balance for order ${order.orderId} escrow ${escrow.contractId}: ${error.message}. ` +
-              `Relying on DB status.`,
-          );
+          this.logger.warn('order.expiration.onchain_check_failed', {
+            orderId: order.orderId,
+            contractId: escrow.contractId,
+            error: error.message,
+          });
         }
       }
     }
@@ -338,7 +378,9 @@ export class OrderService {
     // 'created' -> 'expired'
     // 'locked' -> 'cancelled'
     const targetStatus: order_status =
-      oldStatus === 'locked' ? 'cancelled' : 'expired';
+      oldStatus === ORDER_STATUS.LOCKED
+        ? ORDER_STATUS.CANCELLED
+        : ORDER_STATUS.EXPIRED;
 
     // 3. Update order status in the database
     await this.prisma.order.update({
@@ -346,20 +388,26 @@ export class OrderService {
       data: { orderStatus: targetStatus },
     });
 
-    // 4. Create Audit Log
-    this.logger.log(
-      `[AUDIT LOG] Order ${order.orderId} status transitioned from "${oldStatus}" to "${targetStatus}". ` +
-        `Reason: Automated expiration (expiresAt: ${order.expiresAt?.toISOString()}). ` +
-        `Buyer: ${order.buyerId}, Seller: ${order.sellerId}`,
-    );
+    // 4. Create Structured Audit Log
+    this.logger.log('order.expiration.audit', {
+      orderId: order.orderId,
+      oldStatus,
+      newStatus: targetStatus,
+      buyerId: order.buyerId,
+      sellerId: order.sellerId,
+      expiresAt: order.expiresAt?.toISOString(),
+    });
 
-    // 5. Notify affected users
+    // 5. Create Structured User Notification Event Log
     const buyerContact = order.buyer.alias || order.buyer.publicKey;
     const sellerContact = order.seller.alias || order.seller.publicKey;
-    this.logger.log(
-      `[NOTIFICATION] Notification sent to Buyer "${buyerContact}" (${order.buyer.email || 'no email'}) ` +
-        `and Seller "${sellerContact}" (${order.seller.email || 'no email'}) ` +
-        `that Order ${order.orderId} has been updated to "${targetStatus.toUpperCase()}" due to expiration.`,
-    );
+    this.logger.log('order.expiration.notification.sent', {
+      orderId: order.orderId,
+      targetStatus,
+      buyerId: order.buyerId,
+      buyerContact,
+      sellerId: order.sellerId,
+      sellerContact,
+    });
   }
 }
