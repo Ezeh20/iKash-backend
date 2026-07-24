@@ -47,19 +47,19 @@ export class AuthService {
     });
 
     if (!authChallenge) {
-      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Challenge not found');
+      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Challenge not found');
     }
 
     if (authChallenge.used) {
-      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Challenge already used');
+      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Challenge already used');
     }
 
     if (new Date() > authChallenge.expiresAt) {
-      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Challenge expired');
+      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Challenge expired');
     }
 
     if (authChallenge.publicKey !== publicKey) {
-      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Public key mismatch');
+      throw new AppException(ErrorCode.INVALID_CREDENTIALS, 'Public key mismatch');
     }
 
     let isValid = false;
@@ -71,7 +71,7 @@ export class AuthService {
     }
 
     if (!isValid) {
-      throw new AppException(ErrorCode.UNAUTHORIZED_ACTION, 'Invalid signature');
+      throw new AppException(ErrorCode.INVALID_SIGNATURE, 'Signature verification failed');
     }
 
     // Mark challenge as used

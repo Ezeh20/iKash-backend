@@ -46,6 +46,8 @@ export function errorCodeToHttpStatus(code: ErrorCode): HttpStatus {
 
     // ── 401 Unauthorized ─────────────────────────────────────────────
     [ErrorCode.KYC_WEBHOOK_INVALID_SIGNATURE]: HttpStatus.UNAUTHORIZED,
+    [ErrorCode.INVALID_SIGNATURE]: HttpStatus.UNAUTHORIZED,
+    [ErrorCode.INVALID_CREDENTIALS]: HttpStatus.UNAUTHORIZED,
 
     // ── 403 Forbidden ─────────────────────────────────────────────────
     [ErrorCode.UNAUTHORIZED_ACTION]: HttpStatus.FORBIDDEN,
