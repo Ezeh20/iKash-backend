@@ -17,7 +17,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "jest --config ./test/jest-e2e.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -29,6 +29,8 @@
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.0.1",
+    "@nestjs/websockets": "^11.0.1",
     "@prisma/client": "^6.19.1",
     "@stellar/stellar-sdk": "^16.0.0",
     "axios": "^1.18.1",
@@ -37,9 +39,10 @@
     "dotenv": "^17.3.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "prisma": "^6.19.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "prisma": "^6.19.1",
+    "socket.io": "^4.8.3",
     "stellar-sdk": "^13.3.0"
   },
   "devDependencies": {
@@ -78,10 +81,21 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "allowJs": true,
+            "module": "commonjs",
+            "moduleResolution": "node",
+            "resolvePackageJsonExports": false
+          }
+        }
+      ]
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(\\.pnpm|@stellar|@noble|uint8array-extras|eventsource)/)"
+      "node_modules/\\.pnpm/(?!(@stellar|@noble|@scure|uint8array-extras|eventsource)[@+])",
+      "node_modules/(?!(\\.pnpm|@stellar|@noble|@scure|uint8array-extras|eventsource)/)"
     ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"

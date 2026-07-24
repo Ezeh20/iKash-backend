@@ -1,6 +1,7 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { ChallengeDto } from './dto/challenge.dto';
+import { AuthRateLimitGuard } from './auth-rate-limit.guard';
+import { CreateAuthChallengeDto } from './dto/create-auth-challenge.dto';
 import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
@@ -8,18 +9,22 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * Endpoint to request a secure challenge for wallet authentication.
+   * Step 1: issues a short-lived random challenge that the client must sign
+   * with the wallet's secret key to prove ownership of the public key.
    */
   @Post('challenge')
-  async getChallenge(@Body() body: ChallengeDto) {
-    return this.authService.generateChallenge(body.publicKey);
+  @UseGuards(AuthRateLimitGuard)
+  createChallenge(@Body() dto: CreateAuthChallengeDto) {
+    return this.authService.createChallenge(dto);
   }
 
   /**
-   * Endpoint for secure wallet-based login using challenge-response flow.
+   * Step 2: verifies the signed challenge and emits a temporary JWT only
+   * after the signature proves ownership of the wallet.
    */
   @Post('login')
-  async login(@Body() body: LoginDto) {
-    return this.authService.verifyLogin(body.publicKey, body.challenge, body.signature);
+  @UseGuards(AuthRateLimitGuard)
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
   }
 }
