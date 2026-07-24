@@ -29,6 +29,7 @@
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "^6.1.3",
     "@nestjs/platform-socket.io": "^11.0.1",
     "@nestjs/websockets": "^11.0.1",
     "@prisma/client": "^6.19.1",
@@ -94,6 +95,7 @@
       ]
     },
     "transformIgnorePatterns": [
+      "node_modules/(?!\\.pnpm|@stellar|@noble|stellar-sdk|uint8array-extras)",
       "node_modules/\\.pnpm/(?!(@stellar|@noble|@scure|uint8array-extras|eventsource)[@+])",
       "node_modules/(?!(\\.pnpm|@stellar|@noble|@scure|uint8array-extras|eventsource)/)"
     ],
