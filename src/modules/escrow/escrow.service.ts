@@ -53,6 +53,14 @@ export class EscrowService {
     private readonly fileStorage: FileStorageService,
   ) {}
 
+  /**
+   * Helper method to query on-chain balance for a given escrow contract address.
+   * Encapsulates TrustlessWorkService calls to maintain separation of concerns.
+   */
+  async getOnChainEscrowBalance(contractId: string) {
+    return this.tw.getEscrowBalance(contractId);
+  }
+
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
   private validateAssetCode(assetCode: string | undefined): void {
