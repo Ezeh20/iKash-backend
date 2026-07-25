@@ -1,9 +1,9 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
 import { AppUser } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import { CreateAuthChallengeDto } from './dto/create-auth-challenge.dto';
@@ -25,6 +25,8 @@ export interface AuthChallengeResponse {
 const DEFAULT_CHALLENGE_EXPIRATION_SECONDS = 300;
 
 const ED25519_SIGNATURE_LENGTH = 64;
+
+const SEP_53_PREFIX = Buffer.from('Stellar Signed Message:\n', 'utf8');
 
 const BASE64_REGEX =
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
@@ -107,10 +109,16 @@ export class AuthService {
     let isValidSignature = false;
     try {
       const keypair = Keypair.fromPublicKey(publicKey);
-      isValidSignature = keypair.verify(
-        Buffer.from(challenge, 'utf8'),
-        signatureBytes,
-      );
+      const challengeBytes = Buffer.from(challenge, 'utf8');
+      const sep53Hash = createHash('sha256')
+        .update(Buffer.concat([SEP_53_PREFIX, challengeBytes]))
+        .digest();
+
+      // Freighter and Stellar CLI sign the SEP-53 hash. Keep raw challenge
+      // verification for compatibility with clients that sign bytes directly.
+      isValidSignature =
+        keypair.verify(sep53Hash, signatureBytes) ||
+        keypair.verify(challengeBytes, signatureBytes);
     } catch (error) {
       this.logger.warn(
         `Signature verification threw: ${

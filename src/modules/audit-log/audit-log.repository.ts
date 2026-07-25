@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateAuditLogInput } from './interfaces/create-audit-log.interface';
 
 /**
  * Data-access layer for audit log records.
  *
- * Intentionally exposes only `create` and read methods — audit records are
+ * Intentionally exposes only `create` and read methods â€” audit records are
  * immutable through normal application flows, so there is no `update` or
  * `delete` here. This does not extend `BaseRepository`, since that base
  * class exposes update/delete operations that audit logs must never allow.
@@ -25,7 +26,7 @@ export class AuditLogRepository {
         ipAddress: input.ipAddress,
         userAgent: input.userAgent,
         correlationId: input.correlationId,
-        metadata: input.metadata,
+        metadata: input.metadata as Prisma.InputJsonValue | undefined,
       },
     });
   }

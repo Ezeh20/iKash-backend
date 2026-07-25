@@ -14,6 +14,7 @@ model AppUser {
   alias                String?          @unique @map("alias")
   username             String?          @map("username")
   kycStatus            kyc_status       @default(pending) @map("kyc_status")
+  role                 app_role         @default(USER) @map("role")
   kycUpdatedAt         DateTime?        @map("kyc_updated_at") @db.Timestamptz(6)
   totalVolume          Decimal          @default(0) @map("total_volume") @db.Decimal(20, 7)
   createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -193,7 +194,7 @@ enum payment_provider_type {
 
 /// Immutable audit trail for critical security-relevant actions across the
 /// platform (auth, payments, offers/orders, escrow, disputes, KYC, admin
-/// actions). Never updated or deleted through normal application flows —
+/// actions). Never updated or deleted through normal application flows â€”
 /// see AuditLogService for the only supported write path.
 model AuditLog {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -232,4 +233,10 @@ model Waitlist {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("waitlist")
+}
+
+
+enum app_role {
+  USER
+  ADMIN
 }
