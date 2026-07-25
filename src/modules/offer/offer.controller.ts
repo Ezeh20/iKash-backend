@@ -32,7 +32,7 @@ export class OfferController {
     if (dto.creatorId !== req.user.userId) {
       throw new AppException(
         ErrorCode.UNAUTHORIZED_ACTION,
-        'You can only create offers for yourself'
+        'You can only create offers for yourself',
       );
     }
     return this.service.create(dto);
