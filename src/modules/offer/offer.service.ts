@@ -4,14 +4,14 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { OfferRepository } from './offer.repository';
 import { AppException, ErrorCode } from '../../common/errors';
-import { Offer, offer_status, offer_type } from '@prisma/client';
+import type { Offer, offer_status, offer_type } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
-type OfferFilter = {
+export type OfferFilter = {
   creatorId?: string;
-  status?: string;
-  type?: string;
+  status?: offer_status;
+  type?: offer_type;
   assetCode?: string;
 };
 
@@ -42,8 +42,8 @@ export class OfferService {
   list(p: PaginationDto, q: OfferFilter): Promise<Offer[]> {
     const where: Record<string, unknown> = {};
     if (q.creatorId) where.creatorId = q.creatorId;
-    if (q.status) where.status = q.status as offer_status;
-    if (q.type) where.type = q.type as offer_type;
+    if (q.status) where.status = q.status;
+    if (q.type) where.type = q.type;
     if (q.assetCode) where.assetCode = q.assetCode;
     return this.repo.search(where, p.skip, p.take);
   }

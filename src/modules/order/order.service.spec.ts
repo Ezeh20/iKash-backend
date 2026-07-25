@@ -1,8 +1,11 @@
+jest.mock('@stellar/stellar-sdk', () => ({}));
+
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrderRepository } from './order.repository';
 import { OrderService } from './order.service';
+import { OrderRepository } from './order.repository';
 import { EscrowService } from '../escrow/escrow.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 describe('OrderService.cancel', () => {
   let service: OrderService;
@@ -31,6 +34,7 @@ describe('OrderService.cancel', () => {
         { provide: OrderRepository, useValue: repo },
         { provide: EscrowService, useValue: {} },
         { provide: AuditLogService, useValue: { create: jest.fn() } },
+        { provide: PrismaService, useValue: {} },
       ],
     }).compile();
 
