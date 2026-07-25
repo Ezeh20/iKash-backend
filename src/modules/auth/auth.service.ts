@@ -91,7 +91,11 @@ export class AuthService {
       stored.expiresAt.getTime() <= Date.now() ||
       stored.challenge !== challenge
     ) {
-      await this.recordLoginFailure(publicKey, ctx, 'invalid_or_expired_challenge');
+      await this.recordLoginFailure(
+        publicKey,
+        ctx,
+        'invalid_or_expired_challenge',
+      );
       throw new AppException(
         ErrorCode.INVALID_CHALLENGE,
         'Challenge is invalid or has expired',

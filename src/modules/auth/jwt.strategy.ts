@@ -19,13 +19,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: JwtPayload): Promise<{ userId: string; publicKey: string }> {
+  async validate(
+    payload: JwtPayload,
+  ): Promise<{ userId: string; publicKey: string }> {
     let userId = payload.sub;
-    
+
     // Fallback for legacy tokens where sub was the wallet address
     if (userId.startsWith('G') && userId.length === 56) {
       const user = await this.prisma.appUser.findUnique({
-        where: { publicKey: userId }
+        where: { publicKey: userId },
       });
       if (user) {
         userId = user.userId;
@@ -33,7 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new AppException(ErrorCode.USER_NOT_FOUND, 'User not found');
       }
     }
-    
+
     return { userId, publicKey: payload.publicKey };
   }
 }
