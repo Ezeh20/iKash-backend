@@ -4,7 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
 import { ScheduleModule } from '@nestjs/schedule';
-import { PrismaModule } from '../prisma/prisma.module'; // <- si tu prisma.module.ts está en raíz, ajusta este import
+import { PrismaModule } from '../prisma/prisma.module'; // <- si tu prisma.module.ts estÃ¡ en raÃ­z, ajusta este import
 import { UsersModule } from './modules/users/user.module';
 
 import { OfferModule } from './modules/offer/offer.module';
@@ -18,6 +18,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PaymentProvidersModule } from './modules/payment-providers/payment-providers.module';
 import { SendModule } from './modules/send/send.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { AuditLogModule } from './modules/audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { StatsModule } from './modules/stats/stats.module';
     PaymentProvidersModule,
     SendModule,
     StatsModule,
+    AuditLogModule,
     // Note: The default ThrottlerModule uses in-memory storage, which does not synchronize
     // across multiple Node.js processes. For production deployments with multiple replicas
     // (e.g. horizontally scaled), you MUST configure a shared storage provider like Redis

@@ -13,6 +13,8 @@ import {
   EscrowOnChain,
   AppUser,
 } from '@prisma/client';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ORDER_STATUS } from './order.constants';
 
@@ -69,6 +71,7 @@ export class OrderService {
   constructor(
     private readonly repo: OrderRepository,
     private readonly escrowService: EscrowService,
+    private readonly auditLogService: AuditLogService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -76,7 +79,7 @@ export class OrderService {
    * Atomic order + escrow creation.
    *
    * 1. Pre-generate an orderId (UUIDv4).
-   * 2. Call EscrowService.deployEscrowToChain() — interacts ONLY with TW API.
+   * 2. Call EscrowService.deployEscrowToChain() ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â interacts ONLY with TW API.
    *    If this fails the method throws and NO database record is created.
    * 3. Persist Order + EscrowOnChain in a single DB transaction.
    * 4. Return the order data with the unsigned fund XDR so the frontend can
@@ -86,7 +89,7 @@ export class OrderService {
     const orderId = randomUUID();
 
     this.logger.log(
-      `Creating order ${orderId} — deploying escrow to chain first…`,
+      `Creating order ${orderId} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â deploying escrow to chain firstÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦`,
     );
 
     const { contractId, unsignedFundTransaction } =
@@ -99,7 +102,7 @@ export class OrderService {
       });
 
     this.logger.log(
-      `Escrow deployed (contract=${contractId}). Persisting order + escrow in DB…`,
+      `Escrow deployed (contract=${contractId}). Persisting order + escrow in DBÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦`,
     );
 
     const data: OrderCreateData = {
@@ -125,7 +128,16 @@ export class OrderService {
 
     this.logger.log(`Order ${orderId} and escrow persisted successfully.`);
 
-    // ── Return combined response ─────────────────────────────────────────
+    await this.auditLogService.create({
+      userId: dto.buyerId,
+      action: AuditAction.ORDER_CREATED,
+      resourceType: 'Order',
+      resourceId: orderId,
+      result: AuditResult.SUCCESS,
+      metadata: { offerId: dto.offerId, sellerId: dto.sellerId },
+    });
+
+    // ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Return combined response ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
     return {
       ...order,
       escrow: order.escrowId ? { escrowId: order.escrowId } : undefined,
@@ -158,14 +170,48 @@ export class OrderService {
     return item;
   }
 
-  update(id: string, dto: UpdateOrderDto): Promise<Order> {
+  async update(id: string, dto: UpdateOrderDto): Promise<Order> {
     const data: Record<string, unknown> = { ...dto };
     if (dto.expiresAt) data.expiresAt = new Date(dto.expiresAt);
-    return this.repo.update(id, data) as Promise<Order>;
+    const updated = (await this.repo.update(id, data)) as Order;
+
+    // Record cancellation/expiration explicitly when the update sets the
+    // order into one of those terminal statuses; other field updates
+    // (e.g. expiresAt extension) are not separately audited here.
+    if (dto.orderStatus === 'cancelled') {
+      await this.auditLogService.create({
+        userId: updated.buyerId,
+        action: AuditAction.ORDER_CANCELLED,
+        resourceType: 'Order',
+        resourceId: id,
+        result: AuditResult.SUCCESS,
+      });
+    } else if (dto.orderStatus === 'expired') {
+      await this.auditLogService.create({
+        userId: updated.buyerId,
+        action: AuditAction.ORDER_EXPIRED,
+        resourceType: 'Order',
+        resourceId: id,
+        result: AuditResult.SUCCESS,
+      });
+    }
+
+    return updated;
   }
 
-  remove(id: string): Promise<Order> {
-    return this.repo.delete(id) as Promise<Order>;
+  async remove(id: string): Promise<Order> {
+    const removed = (await this.repo.delete(id)) as Order;
+
+    await this.auditLogService.create({
+      userId: removed.buyerId,
+      action: AuditAction.ORDER_CANCELLED,
+      resourceType: 'Order',
+      resourceId: id,
+      result: AuditResult.SUCCESS,
+      metadata: { reason: 'deleted' },
+    });
+
+    return removed;
   }
 
   /**
@@ -176,7 +222,7 @@ export class OrderService {
    *  - Terminal order states (released, cancelled, expired, disputed) cannot
    *    be cancelled again.
    *  - If an on-chain escrow exists, cancellation is only allowed while the
-   *    escrow is still "pending" or "initialized" — i.e. before any funds
+   *    escrow is still "pending" or "initialized" ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â i.e. before any funds
    *    have actually moved on-chain. Once the escrow is "funded",
    *    "fiat_sent", "released", "disputed", or "resolved", direct
    *    cancellation is rejected: this codebase has no refund flow, so

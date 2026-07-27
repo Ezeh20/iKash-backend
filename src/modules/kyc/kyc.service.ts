@@ -1,7 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import { kyc_status } from '@prisma/client';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 interface DiditWebhookPayload {
   vendor_data?: string;
@@ -23,7 +25,10 @@ export class KycService {
   private readonly diditApiKey = process.env.DIDIT_API_KEY;
   private readonly diditWorkflowId = process.env.DIDIT_WORKFLOW_ID;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
   async initializeSession(userId: string): Promise<{ sessionUrl: string }> {
     try {
@@ -135,19 +140,45 @@ export class KycService {
     else if (statusLower === 'in_progress') kycStatus = 'in_progress';
     else kycStatus = 'pending';
 
+    // Capture the pre-update status so the audit record shows the actual
+    // transition (previousStatus -> newStatus), not just the new value.
+    const existing = await this.prisma.appUser.findUnique({
+      where: { userId },
+      select: { kycStatus: true },
+    });
+    const previousStatus = existing?.kycStatus ?? null;
+
     try {
       const updatedUser = await this.prisma.appUser.update({
         where: { userId },
         data: { kycStatus, kycUpdatedAt: new Date() },
       });
       this.logger.log(
-        `[KYC WEBHOOK] ✅ Updated user ${userId} → kycStatus: ${updatedUser.kycStatus}`,
+        `[KYC WEBHOOK] âœ… Updated user ${userId} â†’ kycStatus: ${updatedUser.kycStatus}`,
       );
+
+      await this.auditLogService.createOrThrow({
+        userId,
+        action: AuditAction.KYC_STATUS_UPDATED,
+        resourceType: 'User',
+        resourceId: userId,
+        result: AuditResult.SUCCESS,
+        metadata: { previousStatus, newStatus: updatedUser.kycStatus },
+      });
     } catch (error) {
       const err = error as Error;
       this.logger.error(
-        `[KYC WEBHOOK] ❌ Failed to update user ${userId}: ${err.message}`,
+        `[KYC WEBHOOK] âŒ Failed to update user ${userId}: ${err.message}`,
       );
+
+      await this.auditLogService.createOrThrow({
+        userId,
+        action: AuditAction.KYC_STATUS_UPDATED,
+        resourceType: 'User',
+        resourceId: userId,
+        result: AuditResult.FAILURE,
+        metadata: { previousStatus, attemptedStatus: kycStatus },
+      });
     }
   }
 }
