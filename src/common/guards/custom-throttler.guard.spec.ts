@@ -2,12 +2,26 @@ import { ExecutionContext, HttpException } from '@nestjs/common';
 import { CustomThrottlerGuard } from './custom-throttler.guard';
 import { ThrottlerLimitDetail } from '@nestjs/throttler';
 
+import { Test, TestingModule } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
+
 describe('CustomThrottlerGuard', () => {
   let guard: CustomThrottlerGuard;
 
-  beforeEach(() => {
-    // Instantiating the custom guard with mocked dependencies
-    guard = new CustomThrottlerGuard({} as any, {} as any, {} as any);
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        ThrottlerModule.forRoot([
+          {
+            ttl: 60000,
+            limit: 10,
+          },
+        ]),
+      ],
+      providers: [CustomThrottlerGuard],
+    }).compile();
+
+    guard = module.get<CustomThrottlerGuard>(CustomThrottlerGuard);
   });
 
   describe('throwThrottlingException', () => {
