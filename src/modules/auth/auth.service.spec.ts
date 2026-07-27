@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 interface StoredChallenge {
   challengeId: string;
@@ -34,6 +35,7 @@ describe('AuthService', () => {
 
   const jwtMock = { sign: jest.fn().mockReturnValue('signed-jwt') };
   const configMock = { get: jest.fn() };
+  const auditLogMock = { create: jest.fn().mockResolvedValue(undefined) };
 
   const keypair = Keypair.random();
   const publicKey = keypair.publicKey();
@@ -97,6 +99,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: JwtService, useValue: jwtMock },
         { provide: ConfigService, useValue: configMock },
+        { provide: AuditLogService, useValue: auditLogMock },
       ],
     }).compile();
 
