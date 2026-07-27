@@ -15,7 +15,7 @@ describe('rateLimitConfig', () => {
   it('should return default values when environment variables are not set', () => {
     delete process.env.RATE_LIMIT_AUTH_MAX;
     delete process.env.RATE_LIMIT_AUTH_TTL_MS;
-    
+
     expect(rateLimitConfig.auth.limit).toBe(5);
     expect(rateLimitConfig.auth.ttl).toBe(60000);
 
@@ -35,7 +35,7 @@ describe('rateLimitConfig', () => {
   it('should return parsed values from environment variables', () => {
     process.env.RATE_LIMIT_AUTH_MAX = '100';
     process.env.RATE_LIMIT_AUTH_TTL_MS = '120000';
-    
+
     expect(rateLimitConfig.auth.limit).toBe(100);
     expect(rateLimitConfig.auth.ttl).toBe(120000);
   });
