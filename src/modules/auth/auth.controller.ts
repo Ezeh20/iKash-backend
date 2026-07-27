@@ -1,4 +1,6 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { rateLimitConfig } from '../../config/rate-limit.config';
 import { AuthService } from './auth.service';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { CreateAuthChallengeDto } from './dto/create-auth-challenge.dto';
@@ -22,6 +24,7 @@ export class AuthController {
    * Step 2: verifies the signed challenge and emits a temporary JWT only
    * after the signature proves ownership of the wallet.
    */
+  @Throttle({ default: rateLimitConfig.auth })
   @Post('login')
   @UseGuards(AuthRateLimitGuard)
   login(@Body() dto: LoginDto) {
