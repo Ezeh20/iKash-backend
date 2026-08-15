@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { StellarListenerService } from './stellar-listener.service';
@@ -7,12 +8,27 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { OnChainEscrowEvent } from './types/stellar-event.types';
 import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
+interface MockEscrowRecord {
+  escrowId: string;
+  orderId: string;
+  contractId: string;
+  escrowStatus: string;
+  order: {
+    orderId: string;
+    buyerId: string;
+    sellerId: string;
+    orderStatus: string;
+  };
+}
+
 describe('StellarListenerService', () => {
   let service: StellarListenerService;
-  let prismaMock: any;
-  let auditLogMock: any;
+  let findFirstEscrowMock: jest.Mock;
+  let updateEscrowMock: jest.Mock;
+  let updateOrderMock: jest.Mock;
+  let createAuditMock: jest.Mock;
 
-  const mockEscrow = {
+  const mockEscrow: MockEscrowRecord = {
     escrowId: 'escrow-123',
     orderId: 'order-123',
     contractId: 'CONTRACT_ABC',
@@ -26,23 +42,36 @@ describe('StellarListenerService', () => {
   };
 
   beforeEach(async () => {
-    prismaMock = {
+    findFirstEscrowMock = jest.fn().mockResolvedValue(mockEscrow);
+    updateEscrowMock = jest
+      .fn()
+      .mockResolvedValue({ ...mockEscrow, escrowStatus: 'funded' });
+    updateOrderMock = jest
+      .fn()
+      .mockResolvedValue({ orderId: 'order-123', orderStatus: 'locked' });
+    createAuditMock = jest.fn().mockResolvedValue({ id: 'audit-log-1' });
+
+    const prismaMock = {
       escrowOnChain: {
-        findFirst: jest.fn().mockResolvedValue(mockEscrow),
+        findFirst: findFirstEscrowMock,
         findMany: jest.fn().mockResolvedValue([]),
-        update: jest.fn().mockResolvedValue({ ...mockEscrow, escrowStatus: 'funded' }),
+        update: updateEscrowMock,
       },
       order: {
-        update: jest.fn().mockResolvedValue({ orderId: 'order-123', orderStatus: 'locked' }),
+        update: updateOrderMock,
       },
       auditLog: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
-      $transaction: jest.fn().mockImplementation(async (cb) => cb(prismaMock)),
+      $transaction: jest
+        .fn()
+        .mockImplementation((cb: (tx: unknown) => Promise<unknown>) =>
+          cb(prismaMock),
+        ),
     };
 
-    auditLogMock = {
-      create: jest.fn().mockResolvedValue({ id: 'audit-log-1' }),
+    const auditLogMock = {
+      create: createAuditMock,
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -53,7 +82,8 @@ describe('StellarListenerService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string, defaultVal?: string) => {
-              if (key === 'STELLAR_RPC_URL') return 'https://soroban-testnet.stellar.org';
+              if (key === 'STELLAR_RPC_URL')
+                return 'https://soroban-testnet.stellar.org';
               if (key === 'TRUSTLESS_WORK_CONTRACT_ID') return 'CONTRACT_ABC';
               return defaultVal;
             }),
@@ -64,7 +94,7 @@ describe('StellarListenerService', () => {
       ],
     }).compile();
 
-    service = module.get<StellarListenerService>(StellarListenerService);
+    service = module.get(StellarListenerService);
   });
 
   afterEach(() => {
@@ -86,10 +116,9 @@ describe('StellarListenerService', () => {
       engagementId: 'order-123',
     };
 
-    const result = await service.processEvent(event);
-
-    expect(result).toBe(true);
-    expect(prismaMock.escrowOnChain.update).toHaveBeenCalledWith({
+    const processed = await service.processEvent(event);
+    expect(processed).toBe(true);
+    expect(updateEscrowMock).toHaveBeenCalledWith({
       where: { escrowId: 'escrow-123' },
       data: expect.objectContaining({
         escrowStatus: 'funded',
@@ -97,12 +126,12 @@ describe('StellarListenerService', () => {
       }),
     });
 
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
+    expect(updateOrderMock).toHaveBeenCalledWith({
       where: { orderId: 'order-123' },
       data: { orderStatus: 'locked' },
     });
 
-    expect(auditLogMock.create).toHaveBeenCalledWith({
+    expect(createAuditMock).toHaveBeenCalledWith({
       action: AuditAction.ESCROW_FUNDED,
       resourceType: 'Escrow',
       resourceId: 'escrow-123',
@@ -124,16 +153,15 @@ describe('StellarListenerService', () => {
       eventIndex: 0,
     };
 
-    const firstResult = await service.processEvent(event);
-    expect(firstResult).toBe(true);
-
-    const secondResult = await service.processEvent(event);
-    expect(secondResult).toBe(false);
-    expect(prismaMock.escrowOnChain.update).toHaveBeenCalledTimes(1);
+    const first = await service.processEvent(event);
+    expect(first).toBe(true);
+    const second = await service.processEvent(event);
+    expect(second).toBe(false);
+    expect(updateEscrowMock).toHaveBeenCalledTimes(1);
   });
 
   it('should handle ESCROW_RELEASED event', async () => {
-    prismaMock.escrowOnChain.findFirst.mockResolvedValueOnce({
+    findFirstEscrowMock.mockResolvedValueOnce({
       ...mockEscrow,
       escrowStatus: 'funded',
     });
@@ -147,10 +175,9 @@ describe('StellarListenerService', () => {
       eventIndex: 0,
     };
 
-    const result = await service.processEvent(event);
-
-    expect(result).toBe(true);
-    expect(prismaMock.escrowOnChain.update).toHaveBeenCalledWith({
+    const released = await service.processEvent(event);
+    expect(released).toBe(true);
+    expect(updateEscrowMock).toHaveBeenCalledWith({
       where: { escrowId: 'escrow-123' },
       data: expect.objectContaining({
         escrowStatus: 'released',
@@ -158,12 +185,12 @@ describe('StellarListenerService', () => {
       }),
     });
 
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
+    expect(updateOrderMock).toHaveBeenCalledWith({
       where: { orderId: 'order-123' },
       data: { orderStatus: 'released' },
     });
 
-    expect(auditLogMock.create).toHaveBeenCalledWith(
+    expect(createAuditMock).toHaveBeenCalledWith(
       expect.objectContaining({
         action: AuditAction.ESCROW_RELEASED,
         resourceId: 'escrow-123',
@@ -172,7 +199,7 @@ describe('StellarListenerService', () => {
   });
 
   it('should handle ESCROW_REFUNDED event', async () => {
-    prismaMock.escrowOnChain.findFirst.mockResolvedValueOnce({
+    findFirstEscrowMock.mockResolvedValueOnce({
       ...mockEscrow,
       escrowStatus: 'funded',
     });
@@ -186,10 +213,9 @@ describe('StellarListenerService', () => {
       eventIndex: 0,
     };
 
-    const result = await service.processEvent(event);
-
-    expect(result).toBe(true);
-    expect(prismaMock.escrowOnChain.update).toHaveBeenCalledWith({
+    const refunded = await service.processEvent(event);
+    expect(refunded).toBe(true);
+    expect(updateEscrowMock).toHaveBeenCalledWith({
       where: { escrowId: 'escrow-123' },
       data: expect.objectContaining({
         escrowStatus: 'resolved',
@@ -197,14 +223,14 @@ describe('StellarListenerService', () => {
       }),
     });
 
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
+    expect(updateOrderMock).toHaveBeenCalledWith({
       where: { orderId: 'order-123' },
       data: { orderStatus: 'cancelled' },
     });
   });
 
   it('should return false gracefully if escrow record is not found', async () => {
-    prismaMock.escrowOnChain.findFirst.mockResolvedValueOnce(null);
+    findFirstEscrowMock.mockResolvedValueOnce(null);
 
     const event: OnChainEscrowEvent = {
       eventId: 'evt-999:0',
@@ -215,8 +241,8 @@ describe('StellarListenerService', () => {
       eventIndex: 0,
     };
 
-    const result = await service.processEvent(event);
-    expect(result).toBe(false);
-    expect(prismaMock.escrowOnChain.update).not.toHaveBeenCalled();
+    const missing = await service.processEvent(event);
+    expect(missing).toBe(false);
+    expect(updateEscrowMock).not.toHaveBeenCalled();
   });
 });

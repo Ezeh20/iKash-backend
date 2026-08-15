@@ -9,7 +9,11 @@ import { StellarController } from './stellar.controller';
 
 @Module({
   imports: [ConfigModule, PrismaModule, AuditLogModule],
-  providers: [StellarService, StellarEventParserService, StellarListenerService],
+  providers: [
+    StellarService,
+    StellarEventParserService,
+    StellarListenerService,
+  ],
   controllers: [StellarController],
   exports: [StellarService, StellarEventParserService, StellarListenerService],
 })
