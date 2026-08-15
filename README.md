@@ -56,6 +56,7 @@ $ npm run test:e2e
 # test coverage
 $ npm run test:cov
 ```
+
 ## Audit Logging
 
 The platform maintains a centralized, immutable audit trail for critical
@@ -96,14 +97,14 @@ reliable.
 
 ### Currently integrated flows
 
-| Flow | Actions | Location |
-|---|---|---|
-| Auth | `USER_LOGIN_SUCCESS`, `USER_LOGIN_FAILURE` | `src/modules/auth` |
-| KYC | `KYC_STATUS_UPDATED` | `src/modules/kyc` |
-| Escrow | `ESCROW_CREATED`, `ESCROW_FUNDED`, `ESCROW_RELEASED` | `src/modules/escrow` |
-| Payment methods | `PAYMENT_METHOD_CREATED/UPDATED/DELETED` | `src/modules/payment-methods` |
-| Offers | `OFFER_CREATED/UPDATED/CANCELLED` | `src/modules/offer` |
-| Orders | `ORDER_CREATED/CANCELLED/EXPIRED` | `src/modules/order` |
+| Flow            | Actions                                              | Location                      |
+| --------------- | ---------------------------------------------------- | ----------------------------- |
+| Auth            | `USER_LOGIN_SUCCESS`, `USER_LOGIN_FAILURE`           | `src/modules/auth`            |
+| KYC             | `KYC_STATUS_UPDATED`                                 | `src/modules/kyc`             |
+| Escrow          | `ESCROW_CREATED`, `ESCROW_FUNDED`, `ESCROW_RELEASED` | `src/modules/escrow`          |
+| Payment methods | `PAYMENT_METHOD_CREATED/UPDATED/DELETED`             | `src/modules/payment-methods` |
+| Offers          | `OFFER_CREATED/UPDATED/CANCELLED`                    | `src/modules/offer`           |
+| Orders          | `ORDER_CREATED/CANCELLED/EXPIRED`                    | `src/modules/order`           |
 
 ### Known gaps (no corresponding code path yet)
 

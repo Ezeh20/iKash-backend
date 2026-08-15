@@ -1,5 +1,5 @@
 packages:
-  - "."
+  - '.'
 
 allowBuilds:
   '@nestjs/core': true

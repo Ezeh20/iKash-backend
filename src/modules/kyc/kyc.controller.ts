@@ -18,6 +18,7 @@ import { KycService } from './kyc.service';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
+import { CsrfExempt } from '../../common/decorators/csrf-exempt.decorator';
 
 @Controller('kyc')
 export class KycController {
@@ -58,6 +59,7 @@ export class KycController {
   }
 
   @Throttle({ default: rateLimitConfig.kycWebhook })
+  @CsrfExempt()
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   async handleWebhook(

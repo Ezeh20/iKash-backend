@@ -8,18 +8,19 @@ The metadata object must contain a `ui_requirements` array. Each element in this
 
 ### Field Definition
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `db_field` | String | The target field in the `payment_method` table (`account_identifier`, `beneficiary_name`, `identification_number`, `description`). |
-| `label` | String | The human-readable label to display in the UI. |
-| `type` | String | The input type (`text`, `email`, `number`, `tel`). |
-| `placeholder` | String | (Optional) The placeholder text for the input. |
-| `required` | Boolean | Whether the field is mandatory. |
-| `validation_regex` | String | (Optional) A regex pattern for frontend validation. |
+| Property           | Type    | Description                                                                                                                        |
+| :----------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------- |
+| `db_field`         | String  | The target field in the `payment_method` table (`account_identifier`, `beneficiary_name`, `identification_number`, `description`). |
+| `label`            | String  | The human-readable label to display in the UI.                                                                                     |
+| `type`             | String  | The input type (`text`, `email`, `number`, `tel`).                                                                                 |
+| `placeholder`      | String  | (Optional) The placeholder text for the input.                                                                                     |
+| `required`         | Boolean | Whether the field is mandatory.                                                                                                    |
+| `validation_regex` | String  | (Optional) A regex pattern for frontend validation.                                                                                |
 
 ## Examples
 
 ### Mobile Payment (e.g., Pago Móvil)
+
 ```json
 {
   "ui_requirements": [
@@ -42,6 +43,7 @@ The metadata object must contain a `ui_requirements` array. Each element in this
 ```
 
 ### Digital Platform (e.g., PayPal)
+
 ```json
 {
   "ui_requirements": [
@@ -64,6 +66,7 @@ The metadata object must contain a `ui_requirements` array. Each element in this
 ```
 
 ### Bank Transfer (e.g., Bank of America)
+
 ```json
 {
   "ui_requirements": [

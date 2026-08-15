@@ -1,17 +1,21 @@
 ## Pull Request Summary
 
 ### Related Issue
+
 Closes #[issue_number]
 
 ### Description
+
 Please provide a clear and concise description of what this PR changes.
 
 Example:
+
 - What problem does this solve?
 - What was implemented?
 - Why was this approach chosen?
 
 ### Type of Change
+
 Select all that apply:
 
 - [ ] Bug fix
@@ -30,11 +34,9 @@ Select all that apply:
 
 Please list the main changes included in this PR:
 
-- 
-- 
-- 
-
----
+-
+-
+- ***
 
 ## Screenshots / Videos
 
@@ -47,6 +49,7 @@ If this PR includes UI changes, please attach screenshots or a short video.
 ## Testing
 
 ### How was this tested?
+
 Explain how you verified the changes.
 
 - [ ] Tested locally
@@ -59,11 +62,12 @@ Explain how you verified the changes.
 - [ ] Not applicable
 
 ### Test details
+
 Describe the test cases or steps used:
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ---
 
@@ -106,7 +110,7 @@ If yes, describe the changes:
 
 ```txt
 Describe schema changes, migrations, or manual steps here.
-````
+```
 
 ---
 
@@ -114,14 +118,15 @@ Describe schema changes, migrations, or manual steps here.
 
 Does this PR require new or updated environment variables?
 
-* [ ] Yes
-* [ ] No
+- [ ] Yes
+- [ ] No
 
 If yes, list them here:
 
 ```txt
 VARIABLE_NAME=
 ```
+
 ## Optional Ikash Traction Support
 
 Before closing this issue, it would really help the Ikash project if contributors could visit:
@@ -135,9 +140,9 @@ And support us by:
 
 Please mark your status below:
 
-* [ ] I joined the waitlist
-* [ ] I connected a wallet
-* [ ] I have not done it yet
-* [ ] I prefer not to do it
+- [ ] I joined the waitlist
+- [ ] I connected a wallet
+- [ ] I have not done it yet
+- [ ] I prefer not to do it
 
 Thank you for contributing to Ikash.
