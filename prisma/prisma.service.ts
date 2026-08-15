@@ -4,7 +4,10 @@ import { PrismaClient } from '@prisma/client';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
   async onModuleInit() {
-    if (process.env.MOCK_PROFILE_UPLOAD === 'true') {
+    if (
+      process.env.MOCK_PROFILE_UPLOAD === 'true' ||
+      !process.env.DATABASE_URL
+    ) {
       return;
     }
 

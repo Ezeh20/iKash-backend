@@ -1,14 +1,14 @@
 /**
  * Prisma Seed Script
- * 
+ *
  * Purpose:
  * This script initializes and updates the database with mandatory base data.
  * It is designed to be idempotent (safe to run multiple times) using upsert operations.
- * 
+ *
  * Main Operations:
  * 1. Populates the `payment_provider` catalog from `seed-data/payment-providers.json`.
  * 2. Ensures global configurations and system-level entities are present.
- * 
+ *
  * Usage:
  * npx prisma db seed
  */
@@ -23,7 +23,11 @@ async function main() {
   console.log('Starting database seeding...');
 
   // 1. Seed Payment Providers
-  const providersPath = path.join(__dirname, 'seed-data', 'payment-providers.json');
+  const providersPath = path.join(
+    __dirname,
+    'seed-data',
+    'payment-providers.json',
+  );
   const providersData = JSON.parse(fs.readFileSync(providersPath, 'utf8'));
 
   console.log(`Seeding ${providersData.length} payment providers...`);
