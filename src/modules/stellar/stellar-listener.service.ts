@@ -9,9 +9,21 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 import { StellarEventParserService } from './stellar-event-parser.service';
-import { OnChainEscrowEvent, SorobanEventRaw } from './types/stellar-event.types';
-import { escrow_status, order_status } from '@prisma/client';
+import {
+  OnChainEscrowEvent,
+  SorobanEventRaw,
+} from './types/stellar-event.types';
+import {
+  EscrowOnChain,
+  Order,
+  escrow_status,
+  order_status,
+} from '@prisma/client';
 import axios from 'axios';
+
+type EscrowWithOrder = EscrowOnChain & {
+  order?: Order | null;
+};
 
 @Injectable()
 export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
@@ -84,8 +96,8 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
 
   private scheduleNextPoll(delayMs: number) {
     if (!this.isListening) return;
-    this.timer = setTimeout(async () => {
-      await this.pollEventsWithRecovery();
+    this.timer = setTimeout(() => {
+      void this.pollEventsWithRecovery();
     }, delayMs);
   }
 
@@ -97,9 +109,10 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
 
     try {
       await this.fetchAndProcessNewEvents();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(
-        `Error during Stellar listener polling cycle (will retry): ${err.message}`,
+        `Error during Stellar listener polling cycle (will retry): ${message}`,
       );
     } finally {
       this.scheduleNextPoll(this.pollIntervalMs);
@@ -128,12 +141,13 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
         if (handled) {
           processedCount++;
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const stack = err instanceof Error ? err.stack : undefined;
         this.logger.error(
-          `Failed to process individual Stellar event ${raw?.id}: ${err.message}`,
-          err.stack,
+          `Failed to process individual Stellar event ${raw.id}: ${message}`,
+          stack,
         );
-        // Continue processing remaining events
       }
     }
 
@@ -150,7 +164,6 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       contracts.add(this.configuredContractId);
     }
 
-    // Query active contract IDs from DB
     try {
       const activeEscrows = await this.prisma.escrowOnChain.findMany({
         where: {
@@ -165,8 +178,9 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       for (const e of activeEscrows) {
         if (e.contractId) contracts.add(e.contractId);
       }
-    } catch (err: any) {
-      this.logger.warn(`Could not query database for contract IDs: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Could not query database for contract IDs: ${message}`);
     }
 
     return Array.from(contracts);
@@ -175,14 +189,17 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
   /**
    * Issues RPC POST request to Soroban getEvents endpoint.
    */
-  private async queryEventsFromRpc(contractIds: string[]): Promise<SorobanEventRaw[]> {
+  private async queryEventsFromRpc(
+    contractIds: string[],
+  ): Promise<SorobanEventRaw[]> {
     try {
       const body = {
         jsonrpc: '2.0',
         id: 1,
         method: 'getEvents',
         params: {
-          startLedger: this.lastProcessedLedger > 0 ? this.lastProcessedLedger : undefined,
+          startLedger:
+            this.lastProcessedLedger > 0 ? this.lastProcessedLedger : undefined,
           filters: [
             {
               type: 'contract',
@@ -195,18 +212,25 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
         },
       };
 
-      const res = await axios.post(this.rpcUrl, body, { timeout: 10000 });
-      if (res.data?.error) {
+      const res = await axios.post<{
+        error?: unknown;
+        result?: { events?: SorobanEventRaw[]; latestLedger?: number };
+      }>(this.rpcUrl, body, { timeout: 10000 });
+
+      if (res.data.error) {
         throw new Error(`Soroban RPC error: ${JSON.stringify(res.data.error)}`);
       }
 
-      const events: SorobanEventRaw[] = res.data?.result?.events || [];
-      if (res.data?.result?.latestLedger) {
+      const events: SorobanEventRaw[] = res.data.result?.events || [];
+      if (res.data.result?.latestLedger) {
         this.lastProcessedLedger = Number(res.data.result.latestLedger);
       }
       return events;
-    } catch (err: any) {
-      this.logger.debug(`RPC call getEvents failed/fallback to Horizon: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.debug(
+        `RPC call getEvents failed/fallback to Horizon: ${message}`,
+      );
       return [];
     }
   }
@@ -217,22 +241,19 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
   async processEvent(event: OnChainEscrowEvent): Promise<boolean> {
     const eventKey = `${event.eventId}:${event.eventType}`;
 
-    // 1. Check in-memory deduplication set
     if (this.processedEventIds.has(eventKey)) {
       this.logger.debug(`Duplicate event skipped (in-memory): ${eventKey}`);
       return false;
     }
 
-    // 2. Find target escrow in database
     const escrow = await this.findEscrowRecord(event);
     if (!escrow) {
       this.logger.warn(
-        `Received ${event.eventType} for unknown contract/order: ${event.contractId} / ${event.engagementId}`,
+        `Received ${event.eventType} for unknown contract/order: ${event.contractId} / ${event.engagementId ?? 'none'}`,
       );
       return false;
     }
 
-    // 3. Verify event idempotency against current DB status
     if (this.isTerminalOrAlreadyProcessed(escrow, event)) {
       this.logger.debug(
         `Escrow ${escrow.escrowId} is already in state "${escrow.escrowStatus}", event ${eventKey} ignored.`,
@@ -241,16 +262,14 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
 
-    // 4. Map on-chain event to target statuses
     const statusMap = this.mapEventToStatuses(event.eventType);
     if (!statusMap) {
       this.logger.warn(`Unmapped event type: ${event.eventType}`);
       return false;
     }
 
-    // 5. Update Database in a transaction
     await this.prisma.$transaction(async (tx) => {
-      const escrowUpdateData: Record<string, any> = {
+      const escrowUpdateData: Record<string, unknown> = {
         escrowStatus: statusMap.escrowStatus,
       };
 
@@ -258,7 +277,8 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
         escrowUpdateData.txHashLock = event.txHash;
       }
       if (
-        (event.eventType === 'ESCROW_RELEASED' || event.eventType === 'ESCROW_REFUNDED') &&
+        (event.eventType === 'ESCROW_RELEASED' ||
+          event.eventType === 'ESCROW_REFUNDED') &&
         event.txHash
       ) {
         escrowUpdateData.txHashRelease = event.txHash;
@@ -275,7 +295,6 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       });
     });
 
-    // 6. Create Audit Log Entry
     await this.auditLogService.create({
       action: this.mapEventToAuditAction(event.eventType),
       resourceType: 'Escrow',
@@ -291,8 +310,12 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    // 7. Trigger User Notifications
-    this.notifyUsers(escrow, event, statusMap.escrowStatus, statusMap.orderStatus);
+    this.notifyUsers(
+      escrow,
+      event,
+      statusMap.escrowStatus,
+      statusMap.orderStatus,
+    );
 
     this.processedEventIds.add(eventKey);
     this.logger.log(
@@ -302,7 +325,9 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
     return true;
   }
 
-  private async findEscrowRecord(event: OnChainEscrowEvent) {
+  private async findEscrowRecord(
+    event: OnChainEscrowEvent,
+  ): Promise<EscrowWithOrder | null> {
     if (event.contractId) {
       const match = await this.prisma.escrowOnChain.findFirst({
         where: { contractId: event.contractId },
@@ -324,18 +349,27 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private isTerminalOrAlreadyProcessed(
-    escrow: any,
+    escrow: EscrowOnChain,
     event: OnChainEscrowEvent,
   ): boolean {
-    const current = escrow.escrowStatus as escrow_status;
+    const current = escrow.escrowStatus;
 
-    if (event.eventType === 'ESCROW_FUNDED' && ['funded', 'fiat_sent', 'released', 'resolved'].includes(current)) {
+    if (
+      event.eventType === 'ESCROW_FUNDED' &&
+      ['funded', 'fiat_sent', 'released', 'resolved'].includes(current)
+    ) {
       return true;
     }
-    if (event.eventType === 'ESCROW_RELEASED' && ['released', 'resolved'].includes(current)) {
+    if (
+      event.eventType === 'ESCROW_RELEASED' &&
+      ['released', 'resolved'].includes(current)
+    ) {
       return true;
     }
-    if (event.eventType === 'ESCROW_REFUNDED' && ['resolved'].includes(current)) {
+    if (
+      event.eventType === 'ESCROW_REFUNDED' &&
+      ['resolved'].includes(current)
+    ) {
       return true;
     }
     if (event.eventType === 'ESCROW_DISPUTED' && current === 'disputed') {
@@ -387,7 +421,7 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private notifyUsers(
-    escrow: any,
+    escrow: EscrowWithOrder,
     event: OnChainEscrowEvent,
     newEscrowStatus: escrow_status,
     newOrderStatus: order_status,
@@ -426,16 +460,20 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (latestAudit?.metadata && typeof latestAudit.metadata === 'object') {
-        const meta = latestAudit.metadata as any;
-        if (meta.ledgerSequence) {
+        const meta = latestAudit.metadata as Record<string, unknown>;
+        if (
+          typeof meta.ledgerSequence === 'number' ||
+          typeof meta.ledgerSequence === 'string'
+        ) {
           this.lastProcessedLedger = Number(meta.ledgerSequence);
           this.logger.log(
             `Resuming event sync from saved ledger sequence: ${this.lastProcessedLedger}`,
           );
         }
       }
-    } catch (err: any) {
-      this.logger.warn(`Could not load last processed ledger: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Could not load last processed ledger: ${message}`);
     }
   }
 }

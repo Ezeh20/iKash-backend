@@ -18,17 +18,29 @@ export interface OnChainEscrowEvent {
   escrowId?: string;
   amount?: string;
   timestamp?: Date;
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
 }
 
 export interface SorobanEventRaw {
   id: string;
   type?: string;
-  ledger: number;
+  ledger?: number;
+  ledgerSequence?: number;
   ledgerClosedAt?: string;
-  contractId: string;
-  topic: string[];
-  value: any;
+  contractId?: string;
+  contract_id?: string;
+  txHash?: string;
+  tx_hash?: string;
+  transactionHash?: string;
+  eventIndex?: number;
+  index?: number;
+  eventType?: string;
+  event_type?: string;
+  topic?: unknown[];
+  topics?: unknown[];
+  value?: unknown;
+  engagementId?: string;
+  orderId?: string;
+  amount?: string;
   inSuccessfulContractCall?: boolean;
-  txHash: string;
 }
