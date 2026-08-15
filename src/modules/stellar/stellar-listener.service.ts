@@ -1,0 +1,441 @@
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
+import { StellarEventParserService } from './stellar-event-parser.service';
+import { OnChainEscrowEvent, SorobanEventRaw } from './types/stellar-event.types';
+import { escrow_status, order_status } from '@prisma/client';
+import axios from 'axios';
+
+@Injectable()
+export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(StellarListenerService.name);
+  private isListening = false;
+  private timer: NodeJS.Timeout | null = null;
+
+  private lastProcessedLedger = 0;
+  private readonly processedEventIds = new Set<string>();
+
+  private readonly rpcUrl: string;
+  private readonly horizonUrl: string;
+  private readonly configuredContractId?: string;
+  private readonly pollIntervalMs: number;
+
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly auditLogService: AuditLogService,
+    private readonly parser: StellarEventParserService,
+  ) {
+    this.rpcUrl =
+      this.config.get<string>('STELLAR_RPC_URL') ??
+      'https://soroban-testnet.stellar.org';
+    this.horizonUrl =
+      this.config.get<string>('STELLAR_HORIZON_URL') ??
+      'https://horizon-testnet.stellar.org';
+    this.configuredContractId = this.config.get<string>(
+      'TRUSTLESS_WORK_CONTRACT_ID',
+    );
+    this.pollIntervalMs = Number(
+      this.config.get<string>('STELLAR_LISTENER_POLL_INTERVAL_MS', '5000'),
+    );
+  }
+
+  async onModuleInit() {
+    this.logger.log('Initializing StellarListenerService background stream...');
+    await this.loadLastProcessedLedger();
+    this.startListening();
+  }
+
+  onModuleDestroy() {
+    this.stopListening();
+  }
+
+  /**
+   * Starts the polling/streaming event loop.
+   */
+  startListening() {
+    if (this.isListening) return;
+    this.isListening = true;
+    this.logger.log(
+      `Stellar Listener started. Target RPC: ${this.rpcUrl}, Poll Interval: ${this.pollIntervalMs}ms`,
+    );
+
+    this.scheduleNextPoll(0);
+  }
+
+  /**
+   * Stops the listening loop.
+   */
+  stopListening() {
+    this.isListening = false;
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.logger.log('Stellar Listener stopped.');
+  }
+
+  private scheduleNextPoll(delayMs: number) {
+    if (!this.isListening) return;
+    this.timer = setTimeout(async () => {
+      await this.pollEventsWithRecovery();
+    }, delayMs);
+  }
+
+  /**
+   * Polling loop with automatic reconnection & recovery.
+   */
+  private async pollEventsWithRecovery() {
+    if (!this.isListening) return;
+
+    try {
+      await this.fetchAndProcessNewEvents();
+    } catch (err: any) {
+      this.logger.warn(
+        `Error during Stellar listener polling cycle (will retry): ${err.message}`,
+      );
+    } finally {
+      this.scheduleNextPoll(this.pollIntervalMs);
+    }
+  }
+
+  /**
+   * Primary event retrieval and processing logic.
+   */
+  async fetchAndProcessNewEvents(): Promise<number> {
+    const targetContracts = await this.getTargetContractIds();
+    if (targetContracts.length === 0) {
+      this.logger.debug('No active contract IDs found to listen to.');
+      return 0;
+    }
+
+    const rawEvents = await this.queryEventsFromRpc(targetContracts);
+    let processedCount = 0;
+
+    for (const raw of rawEvents) {
+      try {
+        const parsed = this.parser.parseEvent(raw);
+        if (!parsed) continue;
+
+        const handled = await this.processEvent(parsed);
+        if (handled) {
+          processedCount++;
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to process individual Stellar event ${raw?.id}: ${err.message}`,
+          err.stack,
+        );
+        // Continue processing remaining events
+      }
+    }
+
+    return processedCount;
+  }
+
+  /**
+   * Fetches active contract IDs to filter events by.
+   */
+  private async getTargetContractIds(): Promise<string[]> {
+    const contracts = new Set<string>();
+
+    if (this.configuredContractId) {
+      contracts.add(this.configuredContractId);
+    }
+
+    // Query active contract IDs from DB
+    try {
+      const activeEscrows = await this.prisma.escrowOnChain.findMany({
+        where: {
+          contractId: { not: null },
+          escrowStatus: {
+            notIn: ['released', 'resolved'],
+          },
+        },
+        select: { contractId: true },
+      });
+
+      for (const e of activeEscrows) {
+        if (e.contractId) contracts.add(e.contractId);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not query database for contract IDs: ${err.message}`);
+    }
+
+    return Array.from(contracts);
+  }
+
+  /**
+   * Issues RPC POST request to Soroban getEvents endpoint.
+   */
+  private async queryEventsFromRpc(contractIds: string[]): Promise<SorobanEventRaw[]> {
+    try {
+      const body = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getEvents',
+        params: {
+          startLedger: this.lastProcessedLedger > 0 ? this.lastProcessedLedger : undefined,
+          filters: [
+            {
+              type: 'contract',
+              contractIds,
+            },
+          ],
+          pagination: {
+            limit: 100,
+          },
+        },
+      };
+
+      const res = await axios.post(this.rpcUrl, body, { timeout: 10000 });
+      if (res.data?.error) {
+        throw new Error(`Soroban RPC error: ${JSON.stringify(res.data.error)}`);
+      }
+
+      const events: SorobanEventRaw[] = res.data?.result?.events || [];
+      if (res.data?.result?.latestLedger) {
+        this.lastProcessedLedger = Number(res.data.result.latestLedger);
+      }
+      return events;
+    } catch (err: any) {
+      this.logger.debug(`RPC call getEvents failed/fallback to Horizon: ${err.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Synchronize an individual event idempotently.
+   */
+  async processEvent(event: OnChainEscrowEvent): Promise<boolean> {
+    const eventKey = `${event.eventId}:${event.eventType}`;
+
+    // 1. Check in-memory deduplication set
+    if (this.processedEventIds.has(eventKey)) {
+      this.logger.debug(`Duplicate event skipped (in-memory): ${eventKey}`);
+      return false;
+    }
+
+    // 2. Find target escrow in database
+    const escrow = await this.findEscrowRecord(event);
+    if (!escrow) {
+      this.logger.warn(
+        `Received ${event.eventType} for unknown contract/order: ${event.contractId} / ${event.engagementId}`,
+      );
+      return false;
+    }
+
+    // 3. Verify event idempotency against current DB status
+    if (this.isTerminalOrAlreadyProcessed(escrow, event)) {
+      this.logger.debug(
+        `Escrow ${escrow.escrowId} is already in state "${escrow.escrowStatus}", event ${eventKey} ignored.`,
+      );
+      this.processedEventIds.add(eventKey);
+      return false;
+    }
+
+    // 4. Map on-chain event to target statuses
+    const statusMap = this.mapEventToStatuses(event.eventType);
+    if (!statusMap) {
+      this.logger.warn(`Unmapped event type: ${event.eventType}`);
+      return false;
+    }
+
+    // 5. Update Database in a transaction
+    await this.prisma.$transaction(async (tx) => {
+      const escrowUpdateData: Record<string, any> = {
+        escrowStatus: statusMap.escrowStatus,
+      };
+
+      if (event.eventType === 'ESCROW_FUNDED' && event.txHash) {
+        escrowUpdateData.txHashLock = event.txHash;
+      }
+      if (
+        (event.eventType === 'ESCROW_RELEASED' || event.eventType === 'ESCROW_REFUNDED') &&
+        event.txHash
+      ) {
+        escrowUpdateData.txHashRelease = event.txHash;
+      }
+
+      await tx.escrowOnChain.update({
+        where: { escrowId: escrow.escrowId },
+        data: escrowUpdateData,
+      });
+
+      await tx.order.update({
+        where: { orderId: escrow.orderId },
+        data: { orderStatus: statusMap.orderStatus },
+      });
+    });
+
+    // 6. Create Audit Log Entry
+    await this.auditLogService.create({
+      action: this.mapEventToAuditAction(event.eventType),
+      resourceType: 'Escrow',
+      resourceId: escrow.escrowId,
+      result: AuditResult.SUCCESS,
+      metadata: {
+        contractId: event.contractId,
+        orderId: escrow.orderId,
+        txHash: event.txHash,
+        ledgerSequence: event.ledgerSequence,
+        eventIndex: event.eventIndex,
+        eventType: event.eventType,
+      },
+    });
+
+    // 7. Trigger User Notifications
+    this.notifyUsers(escrow, event, statusMap.escrowStatus, statusMap.orderStatus);
+
+    this.processedEventIds.add(eventKey);
+    this.logger.log(
+      `Successfully synchronized event ${event.eventType} for Escrow ${escrow.escrowId} (Order ${escrow.orderId})`,
+    );
+
+    return true;
+  }
+
+  private async findEscrowRecord(event: OnChainEscrowEvent) {
+    if (event.contractId) {
+      const match = await this.prisma.escrowOnChain.findFirst({
+        where: { contractId: event.contractId },
+        include: { order: true },
+      });
+      if (match) return match;
+    }
+
+    if (event.engagementId || event.orderId) {
+      const orderId = event.engagementId || event.orderId;
+      const match = await this.prisma.escrowOnChain.findFirst({
+        where: { orderId },
+        include: { order: true },
+      });
+      if (match) return match;
+    }
+
+    return null;
+  }
+
+  private isTerminalOrAlreadyProcessed(
+    escrow: any,
+    event: OnChainEscrowEvent,
+  ): boolean {
+    const current = escrow.escrowStatus as escrow_status;
+
+    if (event.eventType === 'ESCROW_FUNDED' && ['funded', 'fiat_sent', 'released', 'resolved'].includes(current)) {
+      return true;
+    }
+    if (event.eventType === 'ESCROW_RELEASED' && ['released', 'resolved'].includes(current)) {
+      return true;
+    }
+    if (event.eventType === 'ESCROW_REFUNDED' && ['resolved'].includes(current)) {
+      return true;
+    }
+    if (event.eventType === 'ESCROW_DISPUTED' && current === 'disputed') {
+      return true;
+    }
+
+    return false;
+  }
+
+  private mapEventToStatuses(eventType: string): {
+    escrowStatus: escrow_status;
+    orderStatus: order_status;
+  } | null {
+    switch (eventType) {
+      case 'ESCROW_CREATED':
+        return { escrowStatus: 'initialized', orderStatus: 'created' };
+      case 'ESCROW_FUNDED':
+        return { escrowStatus: 'funded', orderStatus: 'locked' };
+      case 'ESCROW_RELEASED':
+        return { escrowStatus: 'released', orderStatus: 'released' };
+      case 'ESCROW_REFUNDED':
+        return { escrowStatus: 'resolved', orderStatus: 'cancelled' };
+      case 'ESCROW_CANCELLED':
+        return { escrowStatus: 'resolved', orderStatus: 'cancelled' };
+      case 'ESCROW_DISPUTED':
+        return { escrowStatus: 'disputed', orderStatus: 'disputed' };
+      default:
+        return null;
+    }
+  }
+
+  private mapEventToAuditAction(eventType: string): AuditAction {
+    switch (eventType) {
+      case 'ESCROW_CREATED':
+        return AuditAction.ESCROW_CREATED;
+      case 'ESCROW_FUNDED':
+        return AuditAction.ESCROW_FUNDED;
+      case 'ESCROW_RELEASED':
+        return AuditAction.ESCROW_RELEASED;
+      case 'ESCROW_REFUNDED':
+        return AuditAction.ESCROW_REFUNDED;
+      case 'ESCROW_CANCELLED':
+        return AuditAction.ESCROW_CANCELLED;
+      case 'ESCROW_DISPUTED':
+        return AuditAction.ESCROW_DISPUTED;
+      default:
+        return AuditAction.ESCROW_CREATED;
+    }
+  }
+
+  private notifyUsers(
+    escrow: any,
+    event: OnChainEscrowEvent,
+    newEscrowStatus: escrow_status,
+    newOrderStatus: order_status,
+  ) {
+    const buyerId = escrow.order?.buyerId;
+    const sellerId = escrow.order?.sellerId;
+
+    this.logger.log('onchain.escrow.notification.sent', {
+      escrowId: escrow.escrowId,
+      orderId: escrow.orderId,
+      buyerId,
+      sellerId,
+      eventType: event.eventType,
+      newEscrowStatus,
+      newOrderStatus,
+      txHash: event.txHash,
+    });
+  }
+
+  private async loadLastProcessedLedger() {
+    try {
+      const latestAudit = await this.prisma.auditLog.findFirst({
+        where: {
+          action: {
+            in: [
+              AuditAction.ESCROW_CREATED,
+              AuditAction.ESCROW_FUNDED,
+              AuditAction.ESCROW_RELEASED,
+              AuditAction.ESCROW_REFUNDED,
+              AuditAction.ESCROW_CANCELLED,
+              AuditAction.ESCROW_DISPUTED,
+            ],
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (latestAudit?.metadata && typeof latestAudit.metadata === 'object') {
+        const meta = latestAudit.metadata as any;
+        if (meta.ledgerSequence) {
+          this.lastProcessedLedger = Number(meta.ledgerSequence);
+          this.logger.log(
+            `Resuming event sync from saved ledger sequence: ${this.lastProcessedLedger}`,
+          );
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not load last processed ledger: ${err.message}`);
+    }
+  }
+}
