@@ -478,6 +478,7 @@ describeE2E('ChatMessageGateway (e2e)', () => {
 
       expect(ack).toMatchObject({
         ok: true,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         data: expect.objectContaining({
           content: 'Hello from buyer!',
           senderId: BUYER_USER_ID,
