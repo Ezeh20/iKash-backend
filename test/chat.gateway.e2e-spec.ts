@@ -1,11 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  INestApplication,
-  Module,
-  Injectable,
-} from '@nestjs/common';
+import { INestApplication, Module, Injectable } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
+import type { Server } from 'http';
 import { ChatMessageGateway } from '../src/modules/chat-message/chat-message.gateway';
 import { ChatMessageService } from '../src/modules/chat-message/chat-message.service';
 import {
@@ -13,15 +10,17 @@ import {
   ChatEvent,
 } from '../src/modules/chat-message/chat-message.events';
 import type { ChatMessage } from '@prisma/client';
+import type { Socket } from 'socket.io-client';
 
 // ---------------------------------------------------------------------------
 // Attempt to load socket.io-client (optional devDependency)
 // ---------------------------------------------------------------------------
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 let ioClient: typeof import('socket.io-client').io | undefined;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ioClient = (require('socket.io-client') as { io: typeof import('socket.io-client').io }).io;
+  ioClient = (
+    require('socket.io-client') as { io: typeof import('socket.io-client').io }
+  ).io;
 } catch {
   ioClient = undefined;
 }
@@ -45,15 +44,14 @@ class FakeChatMessageService {
   private readonly messages: ChatMessage[] = [];
   private nextId = 1;
 
-  async canAccessOrder(
-    orderId: string,
-    userId: string,
-  ): Promise<boolean | null> {
-    if (orderId !== VALID_ORDER_ID) return null;
-    return userId === BUYER_USER_ID || userId === SELLER_USER_ID;
+  canAccessOrder(orderId: string, userId: string): Promise<boolean | null> {
+    if (orderId !== VALID_ORDER_ID) return Promise.resolve(null);
+    return Promise.resolve(
+      userId === BUYER_USER_ID || userId === SELLER_USER_ID,
+    );
   }
 
-  async create(dto: {
+  create(dto: {
     orderId: string;
     senderId: string;
     content: string;
@@ -66,7 +64,7 @@ class FakeChatMessageService {
       timestamp: new Date(),
     };
     this.messages.push(message);
-    return message;
+    return Promise.resolve(message);
   }
 
   reset(): void {
@@ -95,10 +93,9 @@ class FakeChatMessageService {
 class ChatGatewayTestModule {}
 
 // ---------------------------------------------------------------------------
-// socket.io-client type alias (avoids TS errors when the module is absent)
+// socket.io-client type alias
 // ---------------------------------------------------------------------------
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnySocket = any;
+type AnySocket = Socket;
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -180,9 +177,7 @@ function waitForConnectError(
     const timer = setTimeout(
       () =>
         reject(
-          new Error(
-            'Expected connect_error but socket connected successfully',
-          ),
+          new Error('Expected connect_error but socket connected successfully'),
         ),
       timeoutMs,
     );
@@ -229,13 +224,13 @@ describeE2E('ChatMessageGateway (e2e)', () => {
     app = moduleFixture.createNestApplication();
     await app.listen(0); // random free port
 
-    const address = app.getHttpServer().address() as { port: number };
+    const httpServer = app.getHttpServer() as Server;
+    const address = httpServer.address() as { port: number };
     port = address.port;
 
     jwtService = moduleFixture.get<JwtService>(JwtService);
-    fakeChatService = moduleFixture.get<FakeChatMessageService>(
-      ChatMessageService,
-    );
+    fakeChatService =
+      moduleFixture.get<FakeChatMessageService>(ChatMessageService);
 
     buyerToken = await jwtService.signAsync({ sub: BUYER_USER_ID });
     sellerToken = await jwtService.signAsync({ sub: SELLER_USER_ID });
