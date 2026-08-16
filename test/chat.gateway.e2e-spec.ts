@@ -15,15 +15,16 @@ import type { Socket } from 'socket.io-client';
 // ---------------------------------------------------------------------------
 // Attempt to load socket.io-client (optional devDependency)
 // ---------------------------------------------------------------------------
+/* eslint-disable @typescript-eslint/no-require-imports -- socket.io-client is an optional devDependency, loaded conditionally at runtime */
 let ioClient: typeof import('socket.io-client').io | undefined;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   ioClient = (
     require('socket.io-client') as { io: typeof import('socket.io-client').io }
   ).io;
 } catch {
   ioClient = undefined;
 }
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -97,6 +98,16 @@ class ChatGatewayTestModule {}
 // ---------------------------------------------------------------------------
 type AnySocket = Socket;
 
+/**
+ * Minimal structural interface used only inside waitForEvent/emitWithAck so
+ * we never touch socket.io-client's loosely-typed (`...args: any[]`) emit
+ * overloads directly — that typing is what was leaking `any` into callers.
+ */
+interface EmitAckSocket {
+  once(event: string, callback: (...args: unknown[]) => void): void;
+  emit(event: string, payload: unknown, ack: (response: unknown) => void): void;
+}
+
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
@@ -114,9 +125,9 @@ function waitForEvent<T = unknown>(
         ),
       );
     }, timeoutMs);
-    socket.once(event, (data: T) => {
+    (socket as unknown as EmitAckSocket).once(event, (data: unknown) => {
       clearTimeout(timer);
-      resolve(data);
+      resolve(data as T);
     });
   });
 }
@@ -135,10 +146,14 @@ function emitWithAck<TPayload, TAck = unknown>(
         ),
       );
     }, timeoutMs);
-    socket.emit(event, payload, (ack: TAck) => {
-      clearTimeout(timer);
-      resolve(ack);
-    });
+    (socket as unknown as EmitAckSocket).emit(
+      event,
+      payload,
+      (response: unknown) => {
+        clearTimeout(timer);
+        resolve(response as TAck);
+      },
+    );
   });
 }
 
