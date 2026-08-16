@@ -16,10 +16,10 @@ const VALID_ORDER_ID = '123e4567-e89b-12d3-a456-426614174000';
 function makeClient(overrides: Record<string, unknown> = {}) {
   const rooms = new Set<string>();
   const emit = jest.fn();
-  const join = jest.fn(async (room: string) => {
+  const join = jest.fn((room: string) => {
     rooms.add(room);
   });
-  const leave = jest.fn(async (room: string) => {
+  const leave = jest.fn((room: string) => {
     rooms.delete(room);
   });
   const to = jest.fn().mockReturnValue({ emit });
@@ -167,9 +167,7 @@ describe('ChatMessageGateway', () => {
       client.data = { userId: '', publicKey: undefined };
 
       await (
-        asAny(gateway).authenticateSocket as (
-          c: typeof client,
-        ) => Promise<void>
+        asAny(gateway).authenticateSocket as (c: typeof client) => Promise<void>
       )(client);
 
       expect(client.data.userId).toBe('user-abc');
@@ -182,9 +180,7 @@ describe('ChatMessageGateway', () => {
       client.data = { userId: '', publicKey: undefined };
 
       await (
-        asAny(gateway).authenticateSocket as (
-          c: typeof client,
-        ) => Promise<void>
+        asAny(gateway).authenticateSocket as (c: typeof client) => Promise<void>
       )(client);
 
       expect(client.data.userId).toBe('user-xyz');
@@ -577,9 +573,9 @@ describe('ChatMessageGateway', () => {
 
   describe('roomFor / orderIdFromRoom', () => {
     it('roomFor produces order:<uuid>', () => {
-      const room = (
-        asAny(gateway).roomFor as (id: string) => string
-      )(VALID_ORDER_ID);
+      const room = (asAny(gateway).roomFor as (id: string) => string)(
+        VALID_ORDER_ID,
+      );
       expect(room).toBe(`order:${VALID_ORDER_ID}`);
     });
 
