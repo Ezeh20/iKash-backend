@@ -164,6 +164,7 @@ describe('ChatMessageGateway', () => {
         publicKey: 'GABC123',
       });
       const client = makeClient();
+      client.handshake.auth = { token: 'valid.jwt.token' };
       client.data = { userId: '', publicKey: undefined };
 
       await (
@@ -177,6 +178,7 @@ describe('ChatMessageGateway', () => {
     it('sets userId without publicKey when payload has no publicKey', async () => {
       mockJwtService.verifyAsync.mockResolvedValue({ sub: 'user-xyz' });
       const client = makeClient();
+      client.handshake.auth = { token: 'valid.jwt.token' };
       client.data = { userId: '', publicKey: undefined };
 
       await (
