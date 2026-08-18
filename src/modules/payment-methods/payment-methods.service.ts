@@ -33,9 +33,9 @@ export class PaymentMethodsService {
 
     this.validator.validate(
       {
-        name: provider.name,
         type: provider.type,
         countryCode: provider.country_code,
+        code: (provider.metadata as { code?: string } | null | undefined)?.code,
       },
       dto.accountIdentifier,
     );
@@ -107,9 +107,9 @@ export class PaymentMethodsService {
 
     this.validator.validate(
       {
-        name: provider.name,
         type: provider.type,
         countryCode: provider.country_code,
+        code: (provider.metadata as { code?: string } | null | undefined)?.code,
       },
       accountIdentifier,
     );

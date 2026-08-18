@@ -104,9 +104,10 @@ export class UsersService {
 
       this.paymentMethodValidator.validate(
         {
-          name: provider.name,
           type: provider.type,
           countryCode: provider.country_code,
+          code: (provider.metadata as { code?: string } | null | undefined)
+            ?.code,
         },
         accountIdentifier,
       );

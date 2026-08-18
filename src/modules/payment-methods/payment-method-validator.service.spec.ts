@@ -17,16 +17,24 @@ describe('PaymentMethodValidatorService', () => {
     service = module.get(PaymentMethodValidatorService);
   });
 
-  const provider = (name: string): PaymentProviderInfo => ({ name });
+  const provider = (
+    partial: Partial<PaymentProviderInfo> = {},
+  ): PaymentProviderInfo => ({ type: 'PLATFORM', countryCode: '', ...partial });
 
-  describe('PayPal (e-mail)', () => {
+  describe('PayPal (PLATFORM + GLOBAL e-mail)', () => {
+    const paypal = provider({ type: 'PLATFORM', countryCode: '' });
+
+    it('treats an empty country code as global', () => {
+      expect(service.isValid(paypal, 'user@example.com')).toBe(true);
+    });
+
     it('accepts valid e-mails', () => {
       for (const email of [
         'user@example.com',
         'first.last+tag@sub.domain.co',
         'pix-user_42@paypal.com',
       ]) {
-        expect(service.isValid(provider('PayPal'), email)).toBe(true);
+        expect(service.isValid(paypal, email)).toBe(true);
       }
     });
 
@@ -38,12 +46,14 @@ describe('PaymentMethodValidatorService', () => {
         'user name@example.com',
         '',
       ]) {
-        expect(service.isValid(provider('PayPal'), email)).toBe(false);
+        expect(service.isValid(paypal, email)).toBe(false);
       }
     });
   });
 
-  describe('SINPE Móvil (Costa Rican phone)', () => {
+  describe('SINPE Móvil (MOBILE + Costa Rica)', () => {
+    const sinpe = provider({ type: 'MOBILE', countryCode: 'CR' });
+
     it('accepts valid Costa Rican mobile numbers', () => {
       for (const phone of [
         '61234567',
@@ -52,7 +62,7 @@ describe('PaymentMethodValidatorService', () => {
         '+506 6123 4567',
         '50661234567',
       ]) {
-        expect(service.isValid(provider('SINPE Móvil'), phone)).toBe(true);
+        expect(service.isValid(sinpe, phone)).toBe(true);
       }
     });
 
@@ -65,12 +75,14 @@ describe('PaymentMethodValidatorService', () => {
         '+507 6123 4567',
         '',
       ]) {
-        expect(service.isValid(provider('SINPE Móvil'), phone)).toBe(false);
+        expect(service.isValid(sinpe, phone)).toBe(false);
       }
     });
   });
 
-  describe('Pago Móvil (Venezuelan phone)', () => {
+  describe('Pago Móvil (MOBILE + Venezuela)', () => {
+    const pagoMovil = provider({ type: 'MOBILE', countryCode: 'VE' });
+
     it('accepts valid Venezuelan mobile numbers', () => {
       for (const phone of [
         '04121234567',
@@ -79,7 +91,7 @@ describe('PaymentMethodValidatorService', () => {
         '+58 412-1234567',
         '+58 4241234567',
       ]) {
-        expect(service.isValid(provider('Pago Movil'), phone)).toBe(true);
+        expect(service.isValid(pagoMovil, phone)).toBe(true);
       }
     });
 
@@ -92,110 +104,269 @@ describe('PaymentMethodValidatorService', () => {
         '12345678901',
         '',
       ]) {
-        expect(service.isValid(provider('Pago Movil'), phone)).toBe(false);
+        expect(service.isValid(pagoMovil, phone)).toBe(false);
       }
     });
   });
 
-  describe('IBAN Bank', () => {
-    it('accepts valid IBANs with or without spaces', () => {
-      for (const iban of [
+  describe('Banks (BANK + country-agnostic engine)', () => {
+    const bankOfAmerica = provider({ type: 'BANK', countryCode: 'US' });
+
+    it('accepts national account numbers', () => {
+      for (const account of [
+        '12345678',
+        '000-000000-000',
+        '0000 0000 0000 0000',
         'DE89370400440532013000',
-        'DE89 3704 0044 0532 0130 00',
-        'GB29NWBK60161331926819',
-        'FR1420041010050500013M02606',
       ]) {
-        expect(service.isValid(provider('IBAN Bank'), iban)).toBe(true);
+        expect(service.isValid(bankOfAmerica, account)).toBe(true);
       }
     });
 
-    it('rejects invalid IBANs', () => {
-      for (const iban of [
-        'DE89370400440532013001',
-        'GB29NWBK6016133192681',
-        'ZZ89370400440532013000',
-        'DE8937040044053201',
-        'ABC',
+    it('rejects identifiers that do not look like a bank account', () => {
+      for (const account of [
         '',
+        '   ',
+        'abc',
+        '12',
+        'not a bank account',
+        '!@#$%^',
       ]) {
-        expect(service.isValid(provider('IBAN Bank'), iban)).toBe(false);
+        expect(service.isValid(bankOfAmerica, account)).toBe(false);
       }
     });
   });
 
-  describe('Pix', () => {
+  describe('Panama banks (BANK + PA accept IBAN or account number)', () => {
+    const panama = provider({ type: 'BANK', countryCode: 'PA' });
+
+    it('accepts a valid IBAN', () => {
+      expect(service.isValid(panama, 'PA25BNKO000000000000001234')).toBe(true);
+      expect(service.isValid(panama, 'DE89 3704 0044 0532 0130 00')).toBe(true);
+    });
+
+    it('accepts a national account number', () => {
+      expect(service.isValid(panama, '000-000000-000')).toBe(true);
+    });
+
+    it('rejects invalid identifiers', () => {
+      for (const account of ['', 'abc', '!@#$%^']) {
+        expect(service.isValid(panama, account)).toBe(false);
+      }
+    });
+  });
+
+  describe('Costa Rican banks (BANK + CR)', () => {
+    const crBank = provider({ type: 'BANK', countryCode: 'CR' });
+
+    it('accepts the national 000-000000-000 format', () => {
+      expect(service.isValid(crBank, '000-000000-000')).toBe(true);
+      expect(service.isValid(crBank, '123 456789 000')).toBe(true);
+    });
+
+    it('accepts bare numeric accounts (e.g. BAC Credomatic)', () => {
+      expect(service.isValid(crBank, '0000000000')).toBe(true);
+      expect(service.isValid(crBank, '12345678901234567')).toBe(true);
+    });
+
+    it('rejects values that do not match a Costa Rican account', () => {
+      for (const account of ['', '123', '000-000000-00', 'not-an-account']) {
+        expect(service.isValid(crBank, account)).toBe(false);
+      }
+    });
+  });
+
+  describe('Pix (PLATFORM + Brazil)', () => {
+    const pix = provider({ type: 'PLATFORM', countryCode: 'BR' });
+
     it('accepts a valid CPF', () => {
-      expect(service.isValid(provider('Pix'), '529.982.247-25')).toBe(true);
-      expect(service.isValid(provider('Pix'), '52998224725')).toBe(true);
+      expect(service.isValid(pix, '529.982.247-25')).toBe(true);
+      expect(service.isValid(pix, '52998224725')).toBe(true);
     });
 
     it('rejects an invalid CPF', () => {
-      expect(service.isValid(provider('Pix'), '111.111.111-11')).toBe(false);
-      expect(service.isValid(provider('Pix'), '123.456.789-10')).toBe(false);
+      expect(service.isValid(pix, '111.111.111-11')).toBe(false);
+      expect(service.isValid(pix, '123.456.789-10')).toBe(false);
     });
 
     it('accepts an e-mail key', () => {
-      expect(service.isValid(provider('Pix'), 'user@example.com')).toBe(true);
+      expect(service.isValid(pix, 'user@example.com')).toBe(true);
     });
 
     it('accepts a Brazilian phone key', () => {
-      expect(service.isValid(provider('Pix'), '+55 11 91234 5678')).toBe(true);
-      expect(service.isValid(provider('Pix'), '11912345678')).toBe(true);
+      expect(service.isValid(pix, '+55 11 91234 5678')).toBe(true);
+      expect(service.isValid(pix, '11912345678')).toBe(true);
     });
 
     it('rejects an invalid phone key', () => {
-      expect(service.isValid(provider('Pix'), '1191234567')).toBe(false);
+      expect(service.isValid(pix, '1191234567')).toBe(false);
     });
 
     it('accepts a random (UUID) key', () => {
+      expect(service.isValid(pix, '123e4567-e89b-12d3-a456-426614174000')).toBe(
+        true,
+      );
+    });
+
+    it('rejects unsupported Pix keys', () => {
+      expect(service.isValid(pix, 'not-a-pix-key')).toBe(false);
+      expect(service.isValid(pix, '')).toBe(false);
+    });
+  });
+
+  describe('default rule for unknown scenarios', () => {
+    it('accepts any non-empty identifier for an unknown type', () => {
       expect(
         service.isValid(
-          provider('Pix'),
-          '123e4567-e89b-12d3-a456-426614174000',
+          provider({ type: 'CRYPTO', countryCode: 'XX' }),
+          'anything-at-all',
         ),
       ).toBe(true);
     });
 
-    it('rejects unsupported Pix keys', () => {
-      expect(service.isValid(provider('Pix'), 'not-a-pix-key')).toBe(false);
-      expect(service.isValid(provider('Pix'), '')).toBe(false);
-    });
-  });
-
-  describe('default rule for unknown providers', () => {
-    it('accepts any non-empty identifier', () => {
-      expect(
-        service.isValid(provider('Some Future Provider'), 'anything-at-all'),
-      ).toBe(true);
+    it('rejects empty identifiers for an unknown type', () => {
+      const unknown = provider({ type: 'CRYPTO', countryCode: 'XX' });
+      expect(service.isValid(unknown, '')).toBe(false);
+      expect(service.isValid(unknown, '   ')).toBe(false);
     });
 
-    it('rejects empty identifiers', () => {
-      expect(service.isValid(provider('Some Future Provider'), '')).toBe(false);
-      expect(service.isValid(provider('Some Future Provider'), '   ')).toBe(
-        false,
+    it('uses the default rule when no country matches a registered type', () => {
+      const mobile = provider({ type: 'MOBILE', countryCode: 'MX' });
+      expect(service.isValid(mobile, 'anything-at-all')).toBe(true);
+    });
+
+    it('uses the default rule when the provider has no type', () => {
+      expect(service.isValid({ countryCode: 'CR' }, 'anything-at-all')).toBe(
+        true,
       );
     });
   });
 
-  describe('extensibility', () => {
-    it('lets new providers register a rule without modifying existing logic', () => {
-      service.registerValidator('custom provider', (id) => id === 'secret');
+  describe('registration and lookup precedence', () => {
+    it('registers a rule for a specific country', () => {
+      service.registerValidator(
+        { type: 'CUSTOM', countryCode: 'US' },
+        (id) => id === 'us',
+      );
 
-      expect(service.isValid(provider('Custom Provider'), 'secret')).toBe(true);
-      expect(service.isValid(provider('Custom Provider'), 'other')).toBe(false);
+      expect(
+        service.isValid(provider({ type: 'CUSTOM', countryCode: 'US' }), 'us'),
+      ).toBe(true);
+      expect(
+        service.isValid(
+          provider({ type: 'CUSTOM', countryCode: 'US' }),
+          'other',
+        ),
+      ).toBe(false);
+    });
+
+    it('falls back to a type-only rule when the country is not registered', () => {
+      service.registerValidator(
+        { type: 'CUSTOM', countryCode: '' },
+        (id) => id === 'global',
+      );
+
+      expect(
+        service.isValid(
+          provider({ type: 'CUSTOM', countryCode: 'XX' }),
+          'global',
+        ),
+      ).toBe(true);
+      expect(
+        service.isValid(
+          provider({ type: 'CUSTOM', countryCode: 'XX' }),
+          'other',
+        ),
+      ).toBe(false);
+    });
+
+    it('treats an empty country code as GLOBAL', () => {
+      service.registerValidator(
+        { type: 'CUSTOM', countryCode: '' },
+        (id) => id === 'global',
+      );
+
+      expect(
+        service.isValid(
+          provider({ type: 'CUSTOM', countryCode: '' }),
+          'global',
+        ),
+      ).toBe(true);
+    });
+
+    it('prefers the code-specific rule over the country rule', () => {
+      service.registerValidator(
+        { type: 'CUSTOM', countryCode: 'MX' },
+        (id) => id === 'generic',
+      );
+      service.registerValidator(
+        { type: 'CUSTOM', countryCode: 'MX', code: 'BBVA_MX' },
+        (id) => id === 'bbva',
+      );
+
+      const bbva = provider({
+        type: 'CUSTOM',
+        countryCode: 'MX',
+        code: 'BBVA_MX',
+      });
+      expect(service.isValid(bbva, 'bbva')).toBe(true);
+      expect(service.isValid(bbva, 'generic')).toBe(false);
+
+      const generic = provider({ type: 'CUSTOM', countryCode: 'MX' });
+      expect(service.isValid(generic, 'generic')).toBe(true);
+    });
+
+    it('normalizes type, country and code to uppercase', () => {
+      service.registerValidator(
+        { type: 'custom', countryCode: 'mx', code: 'bbva_mx' },
+        (id) => id === 'ok',
+      );
+
+      expect(
+        service.isValid(
+          provider({ type: 'CUSTOM', countryCode: 'MX', code: 'BBVA_MX' }),
+          'ok',
+        ),
+      ).toBe(true);
+    });
+
+    it('lets new providers register a rule without modifying existing logic', () => {
+      service.registerValidator(
+        { type: 'CUSTOM', countryCode: 'US' },
+        (id) => id === 'secret',
+      );
+
+      expect(
+        service.isValid(
+          provider({ type: 'CUSTOM', countryCode: 'US' }),
+          'secret',
+        ),
+      ).toBe(true);
+      expect(
+        service.isValid(
+          provider({ type: 'CUSTOM', countryCode: 'US' }),
+          'other',
+        ),
+      ).toBe(false);
     });
   });
 
   describe('validate', () => {
     it('returns true for a valid identifier', () => {
-      expect(service.validate(provider('PayPal'), 'user@example.com')).toBe(
-        true,
-      );
+      expect(
+        service.validate(
+          provider({ type: 'PLATFORM', countryCode: '' }),
+          'user@example.com',
+        ),
+      ).toBe(true);
     });
 
     it('throws a 400 INVALID_ACCOUNT_IDENTIFIER for an invalid identifier', () => {
       try {
-        service.validate(provider('PayPal'), 'not-an-email');
+        service.validate(
+          provider({ type: 'PLATFORM', countryCode: '' }),
+          'not-an-email',
+        );
         fail('expected validate to throw');
       } catch (error) {
         expect(error).toBeInstanceOf(AppException);
