@@ -95,7 +95,7 @@ describe('PaymentMethodsService', () => {
         where: { provider_id: 'provider-1' },
       });
       expect(validator.validate).toHaveBeenCalledWith(
-        { name: 'PayPal', type: 'PLATFORM', countryCode: '' },
+        { type: 'PLATFORM', countryCode: '' },
         'user@example.com',
       );
       expect(repo.create).toHaveBeenCalledWith(
@@ -156,7 +156,7 @@ describe('PaymentMethodsService', () => {
       await service.update('pm-1', { accountIdentifier: 'new@example.com' });
 
       expect(validator.validate).toHaveBeenCalledWith(
-        { name: 'PayPal', type: 'PLATFORM', countryCode: '' },
+        { type: 'PLATFORM', countryCode: '' },
         'new@example.com',
       );
     });
