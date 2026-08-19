@@ -58,7 +58,9 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({
         canActivate: (ctx: ExecutionContext) => {
-          const req = ctx.switchToHttp().getRequest();
+          const req = ctx
+            .switchToHttp()
+            .getRequest<{ user?: { userId: string } }>();
           req.user = { userId: buyerId };
           return true;
         },
