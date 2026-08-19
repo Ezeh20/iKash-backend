@@ -1,9 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  INestApplication,
+  ValidationPipe,
+  ExecutionContext,
+} from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrustlessWorkService } from '../src/modules/escrow/trustless-work.service';
+import { JwtAuthGuard } from '../src/modules/auth/jwt-auth.guard';
+import { ResourceOwnerGuard } from '../src/common/guards/resource-owner.guard';
 
 interface EscrowSyncResponse {
   escrowId: string;
@@ -49,6 +55,16 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
     })
       .overrideProvider(TrustlessWorkService)
       .useValue(tw)
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate: (ctx: ExecutionContext) => {
+          const req = ctx.switchToHttp().getRequest();
+          req.user = { userId: buyerId };
+          return true;
+        },
+      })
+      .overrideGuard(ResourceOwnerGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -67,16 +83,11 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    await prisma.escrowOnChain.deleteMany();
-    await prisma.order.deleteMany();
-    await prisma.offer.deleteMany();
-    await prisma.appUser.deleteMany();
-
     const buyer = await prisma.appUser.create({
-      data: { publicKey: `GBUYER${Date.now()}` },
+      data: { publicKey: `GBUYER${Date.now()}${Math.random()}` },
     });
     const seller = await prisma.appUser.create({
-      data: { publicKey: `GSELLER${Date.now()}` },
+      data: { publicKey: `GSELLER${Date.now()}${Math.random()}` },
     });
     buyerId = buyer.userId;
     sellerId = seller.userId;
@@ -116,8 +127,18 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
     escrowId = escrow.escrowId;
   });
 
+  afterEach(async () => {
+    // Clean up only the rows this test created, to avoid colliding with
+    // other e2e suites running in parallel against the same database.
+    await prisma.escrowOnChain.deleteMany({ where: { orderId } });
+    await prisma.order.deleteMany({ where: { orderId } });
+    await prisma.offer.deleteMany({ where: { offerId } });
+    await prisma.appUser.deleteMany({
+      where: { userId: { in: [buyerId, sellerId] } },
+    });
+  });
+
   it('walks the full happy path: pending -> initialize -> funded -> fiat_sent -> release', async () => {
-    // -- initialize ------------------------------------------
     tw.sendTransaction.mockResolvedValueOnce({
       status: 'SUCCESS',
       contractId: 'CONTRACTABC123',
@@ -138,7 +159,6 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
     expect(escrowRow.escrowStatus).toBe('initialized');
     expect(escrowRow.txHashLock).toBeTruthy();
 
-    // -- fund ------------------------------------------------
     tw.sendTransaction.mockResolvedValueOnce({ status: 'SUCCESS' });
 
     res = await request(app.getHttpServer())
@@ -153,7 +173,6 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
     });
     expect(escrowRow.escrowStatus).toBe('funded');
 
-    // -- fiat_sent step 1: buyer requests the milestone-status XDR --
     tw.changeMilestoneStatus.mockResolvedValueOnce({
       unsignedTransaction: 'unsigned-fiat-sent-xdr',
     });
@@ -170,13 +189,11 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
       expect.objectContaining({ contractId: 'CONTRACTABC123' }),
     );
 
-    // escrowStatus is NOT updated by /fiat-sent alone (documents current behavior)
     escrowRow = await prisma.escrowOnChain.findUniqueOrThrow({
       where: { escrowId },
     });
     expect(escrowRow.escrowStatus).toBe('funded');
 
-    // -- fiat_sent step 2: buyer signs and syncs the tx ------
     tw.sendTransaction.mockResolvedValueOnce({ status: 'SUCCESS' });
 
     res = await request(app.getHttpServer())
@@ -195,7 +212,6 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
     });
     expect(escrowRow.escrowStatus).toBe('fiat_sent');
 
-    // -- release ---------------------------------------------
     tw.sendTransaction.mockResolvedValueOnce({ status: 'SUCCESS' });
     tw.getEscrowBalance.mockResolvedValueOnce({ balance: '0' });
     tw.getEscrowByContractId.mockResolvedValueOnce({ status: 'released' });
@@ -213,7 +229,6 @@ describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
     expect(escrowRow.escrowStatus).toBe('released');
     expect(escrowRow.txHashRelease).toBeTruthy();
 
-    // -- verify final on-chain status/balance via GET status --
     const statusRes = await request(app.getHttpServer())
       .get(`/escrows/${escrowId}/status`)
       .expect(200);
