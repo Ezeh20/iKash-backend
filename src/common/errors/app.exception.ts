@@ -35,6 +35,7 @@ export function errorCodeToHttpStatus(code: ErrorCode): HttpStatus {
     [ErrorCode.MISSING_ASSET_ISSUER]: HttpStatus.BAD_REQUEST,
     [ErrorCode.VALIDATION_ERROR]: HttpStatus.BAD_REQUEST,
     [ErrorCode.MISSING_PAYMENT_PROVIDER]: HttpStatus.BAD_REQUEST,
+    [ErrorCode.INVALID_ACCOUNT_IDENTIFIER]: HttpStatus.BAD_REQUEST,
     [ErrorCode.SELF_SEND]: HttpStatus.BAD_REQUEST,
     [ErrorCode.AMOUNT_TOO_SMALL]: HttpStatus.BAD_REQUEST,
     [ErrorCode.MISSING_FEE_COLLECTOR]: HttpStatus.BAD_REQUEST,
