@@ -3,28 +3,32 @@ export type FindManyArgs = {
   take?: number;
   where?: Record<string, unknown>;
   orderBy?: Record<string, unknown>;
+  include?: Record<string, unknown>;
+  select?: Record<string, unknown>;
 };
 
 interface PrismaCrudModel {
-  create: (args: {
+  create(args: {
     data: Record<string, unknown>;
-  }) => Promise<Record<string, unknown>>;
-  findUnique: (args: {
+  }): Promise<Record<string, unknown>>;
+  findUnique(args: {
     where: Record<string, unknown>;
-  }) => Promise<Record<string, unknown> | null>;
-  findMany: (args: {
+  }): Promise<Record<string, unknown> | null>;
+  findMany(args: {
     skip?: number;
     take?: number;
     where?: Record<string, unknown>;
     orderBy?: Record<string, unknown>;
-  }) => Promise<Record<string, unknown>[]>;
-  update: (args: {
+    include?: Record<string, unknown>;
+    select?: Record<string, unknown>;
+  }): Promise<Record<string, unknown>[]>;
+  update(args: {
     where: Record<string, unknown>;
     data: Record<string, unknown>;
-  }) => Promise<Record<string, unknown>>;
-  delete: (args: {
+  }): Promise<Record<string, unknown>>;
+  delete(args: {
     where: Record<string, unknown>;
-  }) => Promise<Record<string, unknown>>;
+  }): Promise<Record<string, unknown>>;
 }
 
 export class BaseRepository {
@@ -44,10 +48,29 @@ export class BaseRepository {
   }
 
   findMany(args: FindManyArgs = {}): Promise<unknown[]> {
-    const { skip = 0, take = 20, where = {}, orderBy = {} } = args;
-    return this.model.findMany({ skip, take, where, orderBy }) as Promise<
-      unknown[]
-    >;
+    const {
+      skip = 0,
+      take = 20,
+      where = {},
+      orderBy = {},
+      include,
+      select,
+    } = args;
+
+    if (include && select) {
+      throw new Error(
+        'findMany: "include" and "select" cannot be used together',
+      );
+    }
+
+    return this.model.findMany({
+      skip,
+      take,
+      where,
+      orderBy,
+      ...(include ? { include } : {}),
+      ...(select ? { select } : {}),
+    }) as Promise<unknown[]>;
   }
 
   update(id: string, data: Record<string, unknown>): Promise<unknown> {

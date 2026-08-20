@@ -2,6 +2,26 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../../common/base.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Order, Prisma } from '@prisma/client';
+import {
+  ORDER_PARTY_SELECT,
+  PAYMENT_METHOD_SELECT,
+} from '../../common/prisma-selects';
+import { ORDER_STATUS } from './order.constants';
+
+export const ORDER_DETAIL_INCLUDE = {
+  offer: {
+    include: {
+      payment_methods: { select: PAYMENT_METHOD_SELECT },
+    },
+  },
+  escrow: true,
+  buyer: { select: ORDER_PARTY_SELECT },
+  seller: { select: ORDER_PARTY_SELECT },
+} satisfies Prisma.OrderInclude;
+
+export type OrderWithRelations = Prisma.OrderGetPayload<{
+  include: typeof ORDER_DETAIL_INCLUDE;
+}>;
 
 @Injectable()
 export class OrderRepository extends BaseRepository {
@@ -74,65 +94,44 @@ export class OrderRepository extends BaseRepository {
     where: Record<string, unknown>,
     skip = 0,
     take = 20,
-  ): Promise<Order[]> {
+  ): Promise<OrderWithRelations[]> {
     return this.prisma.order.findMany({
       where,
       skip,
       take,
       orderBy: { orderId: 'desc' },
-      include: {
-        offer: {
-          include: {
-            payment_methods: {
-              include: {
-                payment_provider: true,
-              },
-            },
-          },
-        },
-        escrow: true,
-        buyer: true,
-        seller: true,
-      },
+      include: ORDER_DETAIL_INCLUDE,
     });
   }
 
-  findById(id: string): Promise<Order | null> {
+  findById(id: string): Promise<OrderWithRelations | null> {
     return this.prisma.order.findUnique({
       where: { orderId: id },
-      include: {
-        offer: {
-          include: {
-            payment_methods: {
-              include: {
-                payment_provider: true,
-              },
-            },
-          },
-        },
-        escrow: true,
-        buyer: true,
-        seller: true,
-      },
+      include: ORDER_DETAIL_INCLUDE,
     });
   }
 
   async getUserStats(
     userId: string,
   ): Promise<{ totalOrders: number; completedOrders: number }> {
-    const totalOrders = await this.prisma.order.count({
+    const countsByStatus = await this.prisma.order.groupBy({
+      by: ['orderStatus'],
       where: {
         OR: [{ buyerId: userId }, { sellerId: userId }],
       },
+      _count: { _all: true },
     });
 
-    const completedOrders = await this.prisma.order.count({
-      where: {
-        OR: [{ buyerId: userId }, { sellerId: userId }],
-        orderStatus: 'released',
+    return countsByStatus.reduce(
+      (stats, row) => {
+        const count = row._count._all;
+        stats.totalOrders += count;
+        if (row.orderStatus === ORDER_STATUS.RELEASED) {
+          stats.completedOrders += count;
+        }
+        return stats;
       },
-    });
-
-    return { totalOrders, completedOrders };
+      { totalOrders: 0, completedOrders: 0 },
+    );
   }
 }
