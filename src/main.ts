@@ -1,9 +1,9 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/errors';
-import 'dotenv/config';
 import helmet from 'helmet';
 
 async function bootstrap() {
