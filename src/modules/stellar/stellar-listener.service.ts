@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
+import { EscrowService } from '../escrow/escrow.service';
+import { OrderService } from '../order/order.service';
 import { StellarEventParserService } from './stellar-event-parser.service';
 import {
   OnChainEscrowEvent,
@@ -44,6 +46,8 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly auditLogService: AuditLogService,
     private readonly parser: StellarEventParserService,
+    private readonly escrowService: EscrowService,
+    private readonly orderService: OrderService,
   ) {
     this.rpcUrl =
       this.config.get<string>('STELLAR_RPC_URL') ??
@@ -268,32 +272,22 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      const escrowUpdateData: Record<string, unknown> = {
-        escrowStatus: statusMap.escrowStatus,
-      };
+    this.escrowService.validateStatusTransition(
+      escrow.escrowStatus,
+      event.eventType,
+    );
 
-      if (event.eventType === 'ESCROW_FUNDED' && event.txHash) {
-        escrowUpdateData.txHashLock = event.txHash;
-      }
-      if (
-        (event.eventType === 'ESCROW_RELEASED' ||
-          event.eventType === 'ESCROW_REFUNDED') &&
-        event.txHash
-      ) {
-        escrowUpdateData.txHashRelease = event.txHash;
-      }
+    await this.escrowService.updateStatusFromOnChain(
+      escrow.escrowId,
+      statusMap.escrowStatus,
+      event.txHash,
+      event.eventType,
+    );
 
-      await tx.escrowOnChain.update({
-        where: { escrowId: escrow.escrowId },
-        data: escrowUpdateData,
-      });
-
-      await tx.order.update({
-        where: { orderId: escrow.orderId },
-        data: { orderStatus: statusMap.orderStatus },
-      });
-    });
+    await this.orderService.updateStatusFromOnChain(
+      escrow.orderId,
+      statusMap.orderStatus,
+    );
 
     await this.auditLogService.create({
       action: this.mapEventToAuditAction(event.eventType),
@@ -352,31 +346,10 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
     escrow: EscrowOnChain,
     event: OnChainEscrowEvent,
   ): boolean {
-    const current = escrow.escrowStatus;
-
-    if (
-      event.eventType === 'ESCROW_FUNDED' &&
-      ['funded', 'fiat_sent', 'released', 'resolved'].includes(current)
-    ) {
-      return true;
-    }
-    if (
-      event.eventType === 'ESCROW_RELEASED' &&
-      ['released', 'resolved'].includes(current)
-    ) {
-      return true;
-    }
-    if (
-      event.eventType === 'ESCROW_REFUNDED' &&
-      ['resolved'].includes(current)
-    ) {
-      return true;
-    }
-    if (event.eventType === 'ESCROW_DISPUTED' && current === 'disputed') {
-      return true;
-    }
-
-    return false;
+    return this.escrowService.isTerminalOrAlreadyProcessed(
+      escrow.escrowStatus,
+      event.eventType,
+    );
   }
 
   private mapEventToStatuses(eventType: string): {

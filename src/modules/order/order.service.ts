@@ -463,4 +463,16 @@ export class OrderService {
       sellerContact,
     });
   }
+
+  /**
+   * Updates an order's status from on-chain event synchronization.
+   */
+  async updateStatusFromOnChain(
+    orderId: string,
+    newStatus: order_status,
+  ): Promise<Order> {
+    return this.repo.update(orderId, {
+      orderStatus: newStatus,
+    }) as unknown as Promise<Order>;
+  }
 }
