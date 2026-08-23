@@ -7,6 +7,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { OnChainEscrowEvent } from './types/stellar-event.types';
 import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
+import { EscrowService } from '../escrow/escrow.service';
+import { OrderService } from '../order/order.service';
 
 interface MockEscrowRecord {
   escrowId: string;
@@ -74,6 +76,57 @@ describe('StellarListenerService', () => {
       create: createAuditMock,
     };
 
+    const escrowServiceMock = {
+      validateStatusTransition: jest.fn(),
+      isTerminalOrAlreadyProcessed: jest.fn(
+        (status: string, eventType: string) => {
+          if (
+            eventType === 'ESCROW_FUNDED' &&
+            ['funded', 'released', 'resolved'].includes(status)
+          )
+            return true;
+          if (
+            eventType === 'ESCROW_RELEASED' &&
+            ['released', 'resolved'].includes(status)
+          )
+            return true;
+          if (eventType === 'ESCROW_REFUNDED' && ['resolved'].includes(status))
+            return true;
+          return false;
+        },
+      ),
+      updateStatusFromOnChain: jest.fn(
+        (
+          escrowId: string,
+          newStatus: string,
+          txHash?: string,
+          eventType?: string,
+        ) => {
+          const data: Record<string, unknown> = { escrowStatus: newStatus };
+          if (eventType === 'ESCROW_FUNDED' && txHash) data.txHashLock = txHash;
+          if (
+            (eventType === 'ESCROW_RELEASED' ||
+              eventType === 'ESCROW_REFUNDED') &&
+            txHash
+          )
+            data.txHashRelease = txHash;
+          return updateEscrowMock({
+            where: { escrowId },
+            data,
+          }) as Promise<unknown>;
+        },
+      ),
+    };
+
+    const orderServiceMock = {
+      updateStatusFromOnChain: jest.fn((orderId: string, newStatus: string) => {
+        return updateOrderMock({
+          where: { orderId },
+          data: { orderStatus: newStatus },
+        }) as Promise<unknown>;
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StellarListenerService,
@@ -91,6 +144,8 @@ describe('StellarListenerService', () => {
         },
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuditLogService, useValue: auditLogMock },
+        { provide: EscrowService, useValue: escrowServiceMock },
+        { provide: OrderService, useValue: orderServiceMock },
       ],
     }).compile();
 
