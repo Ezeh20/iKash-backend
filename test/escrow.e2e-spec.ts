@@ -5,6 +5,7 @@ import {
   ExecutionContext,
 } from '@nestjs/common';
 import request from 'supertest';
+import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrustlessWorkService } from '../src/modules/escrow/trustless-work.service';
@@ -34,7 +35,7 @@ interface ErrorResponse {
 }
 
 describe('Escrow (e2e) - open -> fund -> fiat_sent -> release', () => {
-  let app: INestApplication;
+  let app: INestApplication<App>;
   let prisma: PrismaService;
   const tw = {
     sendTransaction: jest.fn(),

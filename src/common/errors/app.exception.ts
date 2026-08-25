@@ -55,6 +55,8 @@ export function errorCodeToHttpStatus(code: ErrorCode): HttpStatus {
     // ── 403 Forbidden ─────────────────────────────────────────────────
     [ErrorCode.UNAUTHORIZED_ACTION]: HttpStatus.FORBIDDEN,
     [ErrorCode.KYC_REQUIRED]: HttpStatus.FORBIDDEN,
+    [ErrorCode.CSRF_TOKEN_MISSING]: HttpStatus.FORBIDDEN,
+    [ErrorCode.CSRF_TOKEN_INVALID]: HttpStatus.FORBIDDEN,
 
     // ── 404 Not Found ─────────────────────────────────────────────────
     [ErrorCode.USER_NOT_FOUND]: HttpStatus.NOT_FOUND,
