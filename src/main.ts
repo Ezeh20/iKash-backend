@@ -1,17 +1,19 @@
+import 'dotenv/config';
 import type { Request, Response, NextFunction } from 'express';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/errors';
 import { parseCookies } from './common/guards/csrf.guard';
-import 'dotenv/config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
 
+  app.use(helmet());
   app.useGlobalFilters(new HttpExceptionFilter());
 
   app.use(
@@ -31,7 +33,7 @@ async function bootstrap() {
     new ValidationPipe({
       transform: true,
       whitelist: true,
-      forbidNonWhitelisted: false,
+      forbidNonWhitelisted: true,
     }),
   );
 
