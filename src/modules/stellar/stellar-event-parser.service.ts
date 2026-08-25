@@ -124,6 +124,12 @@ export class StellarEventParserService {
       return 'ESCROW_CREATED';
     }
     if (
+      candidateStr.includes('ESCROW_REFUNDED') ||
+      candidateStr.includes('REFUND')
+    ) {
+      return 'ESCROW_REFUNDED';
+    }
+    if (
       candidateStr.includes('ESCROW_FUNDED') ||
       candidateStr.includes('FUND')
     ) {
@@ -134,12 +140,6 @@ export class StellarEventParserService {
       candidateStr.includes('RELEASE')
     ) {
       return 'ESCROW_RELEASED';
-    }
-    if (
-      candidateStr.includes('ESCROW_REFUNDED') ||
-      candidateStr.includes('REFUND')
-    ) {
-      return 'ESCROW_REFUNDED';
     }
     if (
       candidateStr.includes('ESCROW_CANCELLED') ||

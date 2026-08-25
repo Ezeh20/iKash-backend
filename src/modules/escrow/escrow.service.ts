@@ -653,6 +653,9 @@ export class EscrowService {
     currentStatus: escrow_status,
     eventType: string,
   ): boolean {
+    if (eventType === 'ESCROW_CREATED' && currentStatus !== 'pending') {
+      return true;
+    }
     if (
       eventType === 'ESCROW_FUNDED' &&
       ['funded', 'fiat_sent', 'released', 'resolved'].includes(currentStatus)
@@ -668,6 +671,12 @@ export class EscrowService {
     if (
       eventType === 'ESCROW_REFUNDED' &&
       ['resolved'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_CANCELLED' &&
+      ['resolved', 'released'].includes(currentStatus)
     ) {
       return true;
     }

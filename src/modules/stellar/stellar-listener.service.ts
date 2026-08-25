@@ -133,7 +133,8 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       return 0;
     }
 
-    const rawEvents = await this.queryEventsFromRpc(targetContracts);
+    const { events: rawEvents, latestLedger } =
+      await this.queryEventsFromRpc(targetContracts);
     let processedCount = 0;
 
     for (const raw of rawEvents) {
@@ -145,6 +146,12 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
         if (handled) {
           processedCount++;
         }
+        if (
+          parsed.ledgerSequence &&
+          parsed.ledgerSequence > this.lastProcessedLedger
+        ) {
+          this.lastProcessedLedger = parsed.ledgerSequence;
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         const stack = err instanceof Error ? err.stack : undefined;
@@ -153,6 +160,10 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
           stack,
         );
       }
+    }
+
+    if (latestLedger && latestLedger > this.lastProcessedLedger) {
+      this.lastProcessedLedger = latestLedger;
     }
 
     return processedCount;
@@ -195,7 +206,7 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
    */
   private async queryEventsFromRpc(
     contractIds: string[],
-  ): Promise<SorobanEventRaw[]> {
+  ): Promise<{ events: SorobanEventRaw[]; latestLedger?: number }> {
     try {
       const body = {
         jsonrpc: '2.0',
@@ -226,21 +237,22 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       }
 
       const events: SorobanEventRaw[] = res.data.result?.events || [];
-      if (res.data.result?.latestLedger) {
-        this.lastProcessedLedger = Number(res.data.result.latestLedger);
-      }
-      return events;
+      const latestLedger = res.data.result?.latestLedger
+        ? Number(res.data.result.latestLedger)
+        : undefined;
+
+      return { events, latestLedger };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.debug(
         `RPC call getEvents failed/fallback to Horizon: ${message}`,
       );
-      return [];
+      return { events: [] };
     }
   }
 
   /**
-   * Synchronize an individual event idempotently.
+   * Synchronize an individual event idempotently within an atomic database transaction.
    */
   async processEvent(event: OnChainEscrowEvent): Promise<boolean> {
     const eventKey = `${event.eventId}:${event.eventType}`;
@@ -277,31 +289,47 @@ export class StellarListenerService implements OnModuleInit, OnModuleDestroy {
       event.eventType,
     );
 
-    await this.escrowService.updateStatusFromOnChain(
-      escrow.escrowId,
-      statusMap.escrowStatus,
-      event.txHash,
-      event.eventType,
-    );
+    const updateData: Record<string, unknown> = {
+      escrowStatus: statusMap.escrowStatus,
+    };
+    if (event.eventType === 'ESCROW_FUNDED' && event.txHash) {
+      updateData.txHashLock = event.txHash;
+    }
+    if (
+      (event.eventType === 'ESCROW_RELEASED' ||
+        event.eventType === 'ESCROW_REFUNDED') &&
+      event.txHash
+    ) {
+      updateData.txHashRelease = event.txHash;
+    }
 
-    await this.orderService.updateStatusFromOnChain(
-      escrow.orderId,
-      statusMap.orderStatus,
-    );
+    await this.prisma.$transaction(async (tx) => {
+      await tx.escrowOnChain.update({
+        where: { escrowId: escrow.escrowId },
+        data: updateData,
+      });
 
-    await this.auditLogService.create({
-      action: this.mapEventToAuditAction(event.eventType),
-      resourceType: 'Escrow',
-      resourceId: escrow.escrowId,
-      result: AuditResult.SUCCESS,
-      metadata: {
-        contractId: event.contractId,
-        orderId: escrow.orderId,
-        txHash: event.txHash,
-        ledgerSequence: event.ledgerSequence,
-        eventIndex: event.eventIndex,
-        eventType: event.eventType,
-      },
+      await tx.order.update({
+        where: { orderId: escrow.orderId },
+        data: { orderStatus: statusMap.orderStatus },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: this.mapEventToAuditAction(event.eventType),
+          resourceType: 'Escrow',
+          resourceId: escrow.escrowId,
+          result: AuditResult.SUCCESS,
+          metadata: {
+            contractId: event.contractId,
+            orderId: escrow.orderId,
+            txHash: event.txHash,
+            ledgerSequence: event.ledgerSequence,
+            eventIndex: event.eventIndex,
+            eventType: event.eventType,
+          },
+        },
+      });
     });
 
     this.notifyUsers(
