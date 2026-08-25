@@ -1,7 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../../common/base.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { Offer } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { PAYMENT_METHOD_SELECT } from '../../common/prisma-selects';
+
+export const OFFER_DETAIL_INCLUDE = {
+  payment_methods: { select: PAYMENT_METHOD_SELECT },
+} satisfies Prisma.OfferInclude;
+
+export type OfferWithRelations = Prisma.OfferGetPayload<{
+  include: typeof OFFER_DETAIL_INCLUDE;
+}>;
 
 @Injectable()
 export class OfferRepository extends BaseRepository {
@@ -9,7 +18,7 @@ export class OfferRepository extends BaseRepository {
     super(prisma.offer, 'offerId');
   }
 
-  async create(data: Record<string, unknown>): Promise<Offer> {
+  async create(data: Record<string, unknown>): Promise<OfferWithRelations> {
     const { paymentMethodIds, ...offerData } = data as {
       paymentMethodIds?: string[];
       [key: string]: unknown;
@@ -39,22 +48,14 @@ export class OfferRepository extends BaseRepository {
           ? connectPaymentMethods
           : undefined,
       } as never,
-      include: {
-        payment_methods: {
-          include: { payment_provider: true },
-        },
-      },
+      include: OFFER_DETAIL_INCLUDE,
     });
   }
 
-  findById(offerId: string): Promise<Offer | null> {
+  findById(offerId: string): Promise<OfferWithRelations | null> {
     return this.prisma.offer.findUnique({
       where: { offerId },
-      include: {
-        payment_methods: {
-          include: { payment_provider: true },
-        },
-      },
+      include: OFFER_DETAIL_INCLUDE,
     });
   }
 
@@ -62,17 +63,13 @@ export class OfferRepository extends BaseRepository {
     where: Record<string, unknown>,
     skip = 0,
     take = 20,
-  ): Promise<Offer[]> {
+  ): Promise<OfferWithRelations[]> {
     return this.prisma.offer.findMany({
       where,
       skip,
       take,
       orderBy: { offerId: 'desc' },
-      include: {
-        payment_methods: {
-          include: { payment_provider: true },
-        },
-      },
+      include: OFFER_DETAIL_INCLUDE,
     });
   }
 }
