@@ -38,7 +38,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
       this.registerQueryLogger();
     }
 
-    if (process.env.MOCK_PROFILE_UPLOAD === 'true') {
+    if (
+      process.env.MOCK_PROFILE_UPLOAD === 'true' ||
+      !process.env.DATABASE_URL
+    ) {
       return;
     }
 

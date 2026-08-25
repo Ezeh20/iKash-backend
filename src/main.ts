@@ -1,10 +1,12 @@
 import 'dotenv/config';
+import type { Request, Response, NextFunction } from 'express';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/errors';
-import helmet from 'helmet';
+import { parseCookies } from './common/guards/csrf.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -13,6 +15,19 @@ async function bootstrap() {
 
   app.use(helmet());
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  app.use(
+    (
+      req: Request & { cookies?: Record<string, string> },
+      _res: Response,
+      next: NextFunction,
+    ) => {
+      if (!req.cookies && typeof req.headers?.cookie === 'string') {
+        req.cookies = parseCookies(req.headers.cookie);
+      }
+      next();
+    },
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({

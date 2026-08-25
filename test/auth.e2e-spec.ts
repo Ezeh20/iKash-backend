@@ -117,6 +117,11 @@ class FakePrismaService {
       return Promise.resolve(user);
     },
   };
+
+  auditLog = {
+    create: (data: Record<string, unknown>) =>
+      Promise.resolve({ logId: 'log-1', createdAt: new Date(), ...data }),
+  };
 }
 
 describe('Auth challenge-response flow (e2e)', () => {
