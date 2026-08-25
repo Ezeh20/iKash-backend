@@ -5,12 +5,15 @@ import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PaymentMethodValidatorService } from '../payment-methods/payment-method-validator.service';
+import { PaginationDto } from '../../common/pagination.dto';
+import { USER_PUBLIC_SELECT } from '../../common/prisma-selects';
 
 describe('UsersService', () => {
   let service: UsersService;
   let repo: {
     update: jest.Mock;
     findById: jest.Mock;
+    findMany: jest.Mock;
   };
   let mockFileStorageService: {
     uploadFile: jest.Mock;
@@ -20,6 +23,7 @@ describe('UsersService', () => {
     repo = {
       update: jest.fn(),
       findById: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     };
 
     mockFileStorageService = {
@@ -38,6 +42,17 @@ describe('UsersService', () => {
     }).compile();
 
     service = module.get(UsersService);
+  });
+
+  it('lists users through a projection that omits the auth nonce', async () => {
+    await service.list({ skip: 0, take: 20 } as PaginationDto);
+
+    const [args] = repo.findMany.mock.calls[0] as [
+      { select?: Record<string, unknown> },
+    ];
+
+    expect(args.select).toEqual(USER_PUBLIC_SELECT);
+    expect(args.select).not.toHaveProperty('currentNonce');
   });
 
   it('updates the user when the authenticated user owns the resource', async () => {
