@@ -46,6 +46,361 @@ import { PrismaService } from '../prisma/prisma.service';
 import { OrderService } from '../src/modules/order/order.service';
 import { TrustlessWorkService } from '../src/modules/escrow/trustless-work.service';
 
+import { Decimal } from '@prisma/client/runtime/library';
+import type {
+  order_status,
+  offer_status,
+  offer_type,
+  kyc_status,
+  app_role,
+  escrow_status,
+} from '@prisma/client';
+
+interface StoredAppUser {
+  userId: string;
+  publicKey: string;
+  alias: string | null;
+  username: string | null;
+  kycStatus: kyc_status;
+  role: app_role;
+  kycUpdatedAt: Date | null;
+  totalVolume: Decimal;
+  createdAt: Date;
+  currentNonce: string | null;
+  email: string | null;
+  profileImageUrl: string | null;
+  notificationsEnabled: boolean;
+  pendingAccountInfo: boolean;
+  preferredCurrency: string | null;
+  bio: string | null;
+  securityUpdates: boolean;
+}
+
+interface StoredOffer {
+  offerId: string;
+  creatorId: string;
+  type: offer_type;
+  assetCode: string;
+  price: Decimal;
+  minAmount: Decimal;
+  maxAmount: Decimal;
+  status: offer_status;
+  executed: boolean;
+}
+
+interface StoredOrder {
+  orderId: string;
+  offerId: string;
+  buyerId: string;
+  sellerId: string;
+  assetAmount: Decimal;
+  fiatAmount: Decimal;
+  orderStatus: order_status;
+  expiresAt: Date | null;
+}
+
+interface StoredEscrow {
+  escrowId: string;
+  orderId: string;
+  txHashLock: string | null;
+  txHashRelease: string | null;
+  amount: Decimal | null;
+  buyerAddress: string | null;
+  contractId: string | null;
+  escrowStatus: escrow_status;
+  sellerAddress: string | null;
+  evidenceUrl: string | null;
+}
+
+class FakePrismaService {
+  readonly users = new Map<string, StoredAppUser>();
+  readonly offers = new Map<string, StoredOffer>();
+  readonly orders = new Map<string, StoredOrder>();
+  readonly escrows = new Map<string, StoredEscrow>();
+  private idCounter = 1;
+
+  $connect(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  $disconnect(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  onModuleInit(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  appUser = {
+    upsert: ({
+      where,
+      create,
+      update,
+    }: {
+      where: { publicKey?: string; userId?: string };
+      create: {
+        publicKey: string;
+        alias?: string | null;
+        username?: string | null;
+        kycStatus?: kyc_status;
+      };
+      update: Partial<StoredAppUser>;
+    }): Promise<StoredAppUser> => {
+      let user = Array.from(this.users.values()).find(
+        (u) =>
+          (where.publicKey && u.publicKey === where.publicKey) ||
+          (where.userId && u.userId === where.userId),
+      );
+      if (user) {
+        Object.assign(user, update);
+      } else {
+        user = {
+          userId: `user-${this.idCounter++}`,
+          publicKey: create.publicKey,
+          alias: create.alias ?? null,
+          username: create.username ?? null,
+          kycStatus: create.kycStatus ?? ('pending' as kyc_status),
+          role: 'USER' as app_role,
+          kycUpdatedAt: null,
+          totalVolume: new Decimal(0),
+          createdAt: new Date(),
+          currentNonce: null,
+          email: null,
+          profileImageUrl: null,
+          notificationsEnabled: true,
+          pendingAccountInfo: true,
+          preferredCurrency: null,
+          bio: null,
+          securityUpdates: true,
+        };
+        this.users.set(user.userId, user);
+      }
+      return Promise.resolve({ ...user });
+    },
+    deleteMany: ({
+      where,
+    }: {
+      where: { userId: { in: string[] } };
+    }): Promise<{ count: number }> => {
+      let count = 0;
+      for (const id of where.userId.in) {
+        if (this.users.delete(id)) count += 1;
+      }
+      return Promise.resolve({ count });
+    },
+  };
+
+  offer = {
+    create: ({
+      data,
+    }: {
+      data: {
+        creatorId: string;
+        type: offer_type;
+        assetCode: string;
+        price: number | Decimal;
+        minAmount: number | Decimal;
+        maxAmount: number | Decimal;
+        status: offer_status;
+      };
+    }): Promise<StoredOffer> => {
+      const record: StoredOffer = {
+        offerId: `offer-${this.idCounter++}`,
+        creatorId: data.creatorId,
+        type: data.type,
+        assetCode: data.assetCode,
+        price: new Decimal(data.price),
+        minAmount: new Decimal(data.minAmount),
+        maxAmount: new Decimal(data.maxAmount),
+        status: data.status,
+        executed: false,
+      };
+      this.offers.set(record.offerId, record);
+      return Promise.resolve({ ...record });
+    },
+    deleteMany: ({
+      where,
+    }: {
+      where: { creatorId: string };
+    }): Promise<{ count: number }> => {
+      let count = 0;
+      for (const [id, o] of this.offers.entries()) {
+        if (o.creatorId === where.creatorId) {
+          this.offers.delete(id);
+          count += 1;
+        }
+      }
+      return Promise.resolve({ count });
+    },
+  };
+
+  order = {
+    create: ({
+      data,
+    }: {
+      data: {
+        offerId: string;
+        buyerId: string;
+        sellerId: string;
+        assetAmount: number | Decimal;
+        fiatAmount: number | Decimal;
+        orderStatus: order_status;
+        expiresAt?: Date | null;
+      };
+    }): Promise<StoredOrder> => {
+      const record: StoredOrder = {
+        orderId: `order-${this.idCounter++}`,
+        offerId: data.offerId,
+        buyerId: data.buyerId,
+        sellerId: data.sellerId,
+        assetAmount: new Decimal(data.assetAmount),
+        fiatAmount: new Decimal(data.fiatAmount),
+        orderStatus: data.orderStatus,
+        expiresAt: data.expiresAt ?? null,
+      };
+      this.orders.set(record.orderId, record);
+      return Promise.resolve({ ...record });
+    },
+    findMany: ({
+      where,
+      include,
+    }: {
+      where?: {
+        expiresAt?: { lt: Date };
+        orderStatus?: { in: order_status[] };
+      };
+      include?: {
+        escrow?: boolean;
+        buyer?: boolean;
+        seller?: boolean;
+      };
+    }): Promise<
+      Array<
+        StoredOrder & {
+          escrow: StoredEscrow | null;
+          buyer: StoredAppUser;
+          seller: StoredAppUser;
+        }
+      >
+    > => {
+      let list = Array.from(this.orders.values());
+      if (where?.expiresAt?.lt) {
+        const ltTime = where.expiresAt.lt.getTime();
+        list = list.filter(
+          (o) => o.expiresAt !== null && o.expiresAt.getTime() < ltTime,
+        );
+      }
+      if (where?.orderStatus?.in) {
+        const statusIn = where.orderStatus.in;
+        list = list.filter((o) => statusIn.includes(o.orderStatus));
+      }
+      const results = list.map((order) => {
+        let escrow: StoredEscrow | null = null;
+        if (include?.escrow) {
+          escrow =
+            Array.from(this.escrows.values()).find(
+              (e) => e.orderId === order.orderId,
+            ) ?? null;
+        }
+        const buyer = this.users.get(order.buyerId)!;
+        const seller = this.users.get(order.sellerId)!;
+        return {
+          ...order,
+          escrow,
+          buyer,
+          seller,
+        };
+      });
+      return Promise.resolve(results);
+    },
+    findUnique: ({
+      where,
+    }: {
+      where: { orderId: string };
+    }): Promise<StoredOrder | null> => {
+      const order = this.orders.get(where.orderId);
+      return Promise.resolve(order ? { ...order } : null);
+    },
+    update: ({
+      where,
+      data,
+    }: {
+      where: { orderId: string };
+      data: { orderStatus: order_status };
+    }): Promise<StoredOrder> => {
+      const order = this.orders.get(where.orderId);
+      if (!order) {
+        return Promise.reject(new Error(`Order ${where.orderId} not found`));
+      }
+      order.orderStatus = data.orderStatus;
+      return Promise.resolve({ ...order });
+    },
+    deleteMany: ({
+      where,
+    }: {
+      where: { buyerId: string; sellerId: string };
+    }): Promise<{ count: number }> => {
+      let count = 0;
+      for (const [id, o] of this.orders.entries()) {
+        if (o.buyerId === where.buyerId && o.sellerId === where.sellerId) {
+          this.orders.delete(id);
+          count += 1;
+        }
+      }
+      return Promise.resolve({ count });
+    },
+  };
+
+  escrowOnChain = {
+    create: ({
+      data,
+    }: {
+      data: {
+        orderId: string;
+        contractId: string;
+        buyerAddress: string;
+        sellerAddress: string;
+        amount: number | Decimal;
+        escrowStatus: escrow_status;
+      };
+    }): Promise<StoredEscrow> => {
+      const record: StoredEscrow = {
+        escrowId: `escrow-${this.idCounter++}`,
+        orderId: data.orderId,
+        contractId: data.contractId,
+        buyerAddress: data.buyerAddress,
+        sellerAddress: data.sellerAddress,
+        amount: new Decimal(data.amount),
+        escrowStatus: data.escrowStatus,
+        txHashLock: null,
+        txHashRelease: null,
+        evidenceUrl: null,
+      };
+      this.escrows.set(record.escrowId, record);
+      return Promise.resolve({ ...record });
+    },
+    findUnique: ({
+      where,
+    }: {
+      where: { escrowId: string };
+    }): Promise<StoredEscrow | null> => {
+      const escrow = this.escrows.get(where.escrowId);
+      return Promise.resolve(escrow ? { ...escrow } : null);
+    },
+    findFirst: ({
+      where,
+    }: {
+      where: { orderId: string };
+    }): Promise<StoredEscrow | null> => {
+      const escrow =
+        Array.from(this.escrows.values()).find(
+          (e) => e.orderId === where.orderId,
+        ) ?? null;
+      return Promise.resolve(escrow ? { ...escrow } : null);
+    },
+  };
+}
+
 describe('Order Expiration Flow (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -66,6 +421,8 @@ describe('Order Expiration Flow (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
+      .overrideProvider(PrismaService)
+      .useClass(FakePrismaService)
       .overrideProvider(TrustlessWorkService)
       .useValue(twServiceMock)
       .compile();
@@ -250,32 +607,32 @@ describe('Order Expiration Flow (e2e)', () => {
     const updatedA = await prisma.order.findUnique({
       where: { orderId: orderA.orderId },
     });
-    expect(updatedA.orderStatus).toBe('expired');
+    expect(updatedA?.orderStatus).toBe('expired');
 
     const updatedB = await prisma.order.findUnique({
       where: { orderId: orderB.orderId },
     });
-    expect(updatedB.orderStatus).toBe('cancelled');
+    expect(updatedB?.orderStatus).toBe('cancelled');
 
     const updatedC = await prisma.order.findUnique({
       where: { orderId: orderC.orderId },
     });
-    expect(updatedC.orderStatus).toBe('created');
+    expect(updatedC?.orderStatus).toBe('created');
 
     const updatedD = await prisma.order.findUnique({
       where: { orderId: orderD.orderId },
     });
-    expect(updatedD.orderStatus).toBe('locked');
+    expect(updatedD?.orderStatus).toBe('locked');
 
     // Verify escrow records remain unchanged after expiration
     const escrowBAfter = await prisma.escrowOnChain.findUnique({
       where: { escrowId: escrowB.escrowId },
     });
-    expect(escrowBAfter.escrowStatus).toBe('initialized');
+    expect(escrowBAfter?.escrowStatus).toBe('initialized');
 
     const escrowDAfter = await prisma.escrowOnChain.findFirst({
       where: { orderId: orderD.orderId },
     });
-    expect(escrowDAfter.escrowStatus).toBe('fiat_sent');
+    expect(escrowDAfter?.escrowStatus).toBe('fiat_sent');
   });
 });

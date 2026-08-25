@@ -5,6 +5,7 @@ module.exports = {
   rootDir: '.',
   testEnvironment: 'node',
   testRegex: '.e2e-spec.ts$',
+  setupFiles: ['<rootDir>/setup-e2e.ts'],
   transform: baseConfig.transform,
   transformIgnorePatterns: baseConfig.transformIgnorePatterns,
 };

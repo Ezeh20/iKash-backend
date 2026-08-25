@@ -39,10 +39,12 @@ export class AuthController {
           : undefined,
       );
     const existingToken = rawCookies[CSRF_COOKIE_NAME];
-    const token =
-      typeof existingToken === 'string' && existingToken.trim()
-        ? existingToken.trim()
-        : crypto.randomBytes(32).toString('hex');
+    const isValidToken =
+      typeof existingToken === 'string' &&
+      /^[a-f0-9]{64}$/i.test(existingToken.trim());
+    const token = isValidToken
+      ? existingToken.trim()
+      : crypto.randomBytes(32).toString('hex');
     res.cookie(CSRF_COOKIE_NAME, token, getCsrfCookieOptions());
     return { csrfToken: token };
   }

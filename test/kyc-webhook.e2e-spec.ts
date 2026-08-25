@@ -16,7 +16,7 @@ describe('KYC Webhook Verification (e2e)', () => {
     process.env.DIDIT_WEBHOOK_SECRET = SECRET;
     process.env.TRUSTLESS_WORK_API_URL = 'https://api.trustlesswork.com';
     process.env.TRUSTLESS_WORK_API_KEY = 'test_key';
-    process.env.JWT_SECRET = 'test_jwt_secret';
+    process.env.JWT_SECRET = 'test_jwt_secret_with_at_least_32_characters_long';
     process.env.STELLAR_NETWORK = 'TESTNET';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
