@@ -1,4 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+jest.mock('@stellar/stellar-sdk', () => ({}));
+jest.mock('../escrow/trustless-work.service', () => ({
+  TrustlessWorkService: jest.fn(),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { StellarListenerService } from './stellar-listener.service';
@@ -64,6 +69,7 @@ describe('StellarListenerService', () => {
       },
       auditLog: {
         findFirst: jest.fn().mockResolvedValue(null),
+        create: createAuditMock,
       },
       $transaction: jest
         .fn()
@@ -80,6 +86,8 @@ describe('StellarListenerService', () => {
       validateStatusTransition: jest.fn(),
       isTerminalOrAlreadyProcessed: jest.fn(
         (status: string, eventType: string) => {
+          if (eventType === 'ESCROW_CREATED' && status !== 'pending')
+            return true;
           if (
             eventType === 'ESCROW_FUNDED' &&
             ['funded', 'released', 'resolved'].includes(status)
@@ -92,39 +100,19 @@ describe('StellarListenerService', () => {
             return true;
           if (eventType === 'ESCROW_REFUNDED' && ['resolved'].includes(status))
             return true;
+          if (
+            eventType === 'ESCROW_CANCELLED' &&
+            ['resolved', 'released'].includes(status)
+          )
+            return true;
           return false;
         },
       ),
-      updateStatusFromOnChain: jest.fn(
-        (
-          escrowId: string,
-          newStatus: string,
-          txHash?: string,
-          eventType?: string,
-        ) => {
-          const data: Record<string, unknown> = { escrowStatus: newStatus };
-          if (eventType === 'ESCROW_FUNDED' && txHash) data.txHashLock = txHash;
-          if (
-            (eventType === 'ESCROW_RELEASED' ||
-              eventType === 'ESCROW_REFUNDED') &&
-            txHash
-          )
-            data.txHashRelease = txHash;
-          return updateEscrowMock({
-            where: { escrowId },
-            data,
-          }) as Promise<unknown>;
-        },
-      ),
+      updateStatusFromOnChain: jest.fn(),
     };
 
     const orderServiceMock = {
-      updateStatusFromOnChain: jest.fn((orderId: string, newStatus: string) => {
-        return updateOrderMock({
-          where: { orderId },
-          data: { orderStatus: newStatus },
-        }) as Promise<unknown>;
-      }),
+      updateStatusFromOnChain: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -187,13 +175,15 @@ describe('StellarListenerService', () => {
     });
 
     expect(createAuditMock).toHaveBeenCalledWith({
-      action: AuditAction.ESCROW_FUNDED,
-      resourceType: 'Escrow',
-      resourceId: 'escrow-123',
-      result: AuditResult.SUCCESS,
-      metadata: expect.objectContaining({
-        contractId: 'CONTRACT_ABC',
-        txHash: 'txhash_fund_123',
+      data: expect.objectContaining({
+        action: AuditAction.ESCROW_FUNDED,
+        resourceType: 'Escrow',
+        resourceId: 'escrow-123',
+        result: AuditResult.SUCCESS,
+        metadata: expect.objectContaining({
+          contractId: 'CONTRACT_ABC',
+          txHash: 'txhash_fund_123',
+        }),
       }),
     });
   });
@@ -245,12 +235,12 @@ describe('StellarListenerService', () => {
       data: { orderStatus: 'released' },
     });
 
-    expect(createAuditMock).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(createAuditMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
         action: AuditAction.ESCROW_RELEASED,
         resourceId: 'escrow-123',
       }),
-    );
+    });
   });
 
   it('should handle ESCROW_REFUNDED event', async () => {
@@ -298,6 +288,46 @@ describe('StellarListenerService', () => {
 
     const missing = await service.processEvent(event);
     expect(missing).toBe(false);
+    expect(updateEscrowMock).not.toHaveBeenCalled();
+  });
+
+  it('should skip replayed ESCROW_CREATED event if escrow is already initialized/funded', async () => {
+    findFirstEscrowMock.mockResolvedValueOnce({
+      ...mockEscrow,
+      escrowStatus: 'initialized',
+    });
+
+    const event: OnChainEscrowEvent = {
+      eventId: 'evt-replay-create:0',
+      eventType: 'ESCROW_CREATED',
+      contractId: 'CONTRACT_ABC',
+      txHash: 'txhash_create_replay',
+      ledgerSequence: 900,
+      eventIndex: 0,
+    };
+
+    const skipped = await service.processEvent(event);
+    expect(skipped).toBe(false);
+    expect(updateEscrowMock).not.toHaveBeenCalled();
+  });
+
+  it('should skip replayed ESCROW_CANCELLED event if escrow is already resolved/released', async () => {
+    findFirstEscrowMock.mockResolvedValueOnce({
+      ...mockEscrow,
+      escrowStatus: 'resolved',
+    });
+
+    const event: OnChainEscrowEvent = {
+      eventId: 'evt-replay-cancel:0',
+      eventType: 'ESCROW_CANCELLED',
+      contractId: 'CONTRACT_ABC',
+      txHash: 'txhash_cancel_replay',
+      ledgerSequence: 950,
+      eventIndex: 0,
+    };
+
+    const skipped = await service.processEvent(event);
+    expect(skipped).toBe(false);
     expect(updateEscrowMock).not.toHaveBeenCalled();
   });
 });
