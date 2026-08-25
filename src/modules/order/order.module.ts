@@ -9,5 +9,6 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
   imports: [EscrowModule, AuditLogModule],
   controllers: [OrderController],
   providers: [OrderService, OrderRepository, OrderCron],
+  exports: [OrderService],
 })
 export class OrderModule {}
