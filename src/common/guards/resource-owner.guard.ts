@@ -8,6 +8,7 @@ import {
   ResourceType,
 } from '../interfaces/resource-owner.interface';
 import { AuthenticatedRequest } from '../../lib/types/auth';
+import { PRIVILEGED_ROLES } from '../constants/roles';
 
 const NOT_FOUND_ERROR_BY_TYPE: Record<ResourceType, ErrorCode> = {
   [ResourceType.ORDER]: ErrorCode.ORDER_NOT_FOUND,
@@ -15,8 +16,6 @@ const NOT_FOUND_ERROR_BY_TYPE: Record<ResourceType, ErrorCode> = {
   [ResourceType.CHAT_MESSAGE]: ErrorCode.CHAT_MESSAGE_NOT_FOUND,
   [ResourceType.PAYMENT_METHOD]: ErrorCode.PAYMENT_METHOD_NOT_FOUND,
 };
-
-const PRIVILEGED_ROLES: ReadonlySet<string> = new Set(['admin', 'support']);
 
 @Injectable()
 export class ResourceOwnerGuard implements CanActivate {

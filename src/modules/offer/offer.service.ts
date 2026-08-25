@@ -3,6 +3,7 @@ import { PaginationDto } from '../../common/pagination.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { OfferRepository } from './offer.repository';
+import type { OfferWithRelations } from './offer.repository';
 import { AppException, ErrorCode } from '../../common/errors';
 import type { Offer, offer_status, offer_type } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -22,7 +23,7 @@ export class OfferService {
     private readonly auditLogService: AuditLogService,
   ) {}
 
-  async create(dto: CreateOfferDto): Promise<Offer> {
+  async create(dto: CreateOfferDto): Promise<OfferWithRelations> {
     const created = await this.repo.create(
       dto as unknown as Record<string, unknown>,
     );
@@ -39,7 +40,7 @@ export class OfferService {
     return created;
   }
 
-  list(p: PaginationDto, q: OfferFilter): Promise<Offer[]> {
+  list(p: PaginationDto, q: OfferFilter): Promise<OfferWithRelations[]> {
     const where: Record<string, unknown> = {};
     if (q.creatorId) where.creatorId = q.creatorId;
     if (q.status) where.status = q.status;
@@ -48,7 +49,7 @@ export class OfferService {
     return this.repo.search(where, p.skip, p.take);
   }
 
-  async get(id: string): Promise<Offer> {
+  async get(id: string): Promise<OfferWithRelations> {
     const item = await this.repo.findById(id);
     if (!item) {
       throw new AppException(
