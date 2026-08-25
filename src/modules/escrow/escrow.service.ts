@@ -35,7 +35,7 @@ import {
   MultiReleaseRoles,
   Trustline,
 } from './trustless-work.types';
-import { EscrowOnChain } from '@prisma/client';
+import { EscrowOnChain, escrow_status } from '@prisma/client';
 import { AppException, ErrorCode } from '../../common/errors';
 import {
   FileStorageService,
@@ -142,15 +142,21 @@ export class EscrowService {
     return escrow;
   }
 
-  private validateStatusTransition(
+  public validateStatusTransition(
     currentStatus: string,
-    action: EscrowAction,
+    action: EscrowAction | string,
   ) {
     const validTransitions: Record<string, string[]> = {
       [EscrowAction.INITIALIZE]: ['pending'],
       [EscrowAction.FUND]: ['initialized'],
       [EscrowAction.FIAT_SENT]: ['funded'],
       [EscrowAction.RELEASE]: ['funded', 'fiat_sent'],
+      ESCROW_CREATED: ['pending'],
+      ESCROW_FUNDED: ['initialized'],
+      ESCROW_RELEASED: ['funded', 'fiat_sent'],
+      ESCROW_REFUNDED: ['funded', 'fiat_sent', 'disputed'],
+      ESCROW_CANCELLED: ['pending', 'initialized'],
+      ESCROW_DISPUTED: ['funded', 'fiat_sent'],
     };
 
     const allowed = validTransitions[action];
@@ -638,5 +644,73 @@ export class EscrowService {
 
   remove(id: string) {
     return this.repo.delete(id);
+  }
+
+  /**
+   * Checks if an escrow status transition for a given event is terminal or already processed.
+   */
+  isTerminalOrAlreadyProcessed(
+    currentStatus: escrow_status,
+    eventType: string,
+  ): boolean {
+    if (eventType === 'ESCROW_CREATED' && currentStatus !== 'pending') {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_FUNDED' &&
+      ['funded', 'fiat_sent', 'released', 'resolved'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_RELEASED' &&
+      ['released', 'resolved'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_REFUNDED' &&
+      ['resolved'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_CANCELLED' &&
+      ['resolved', 'released'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (eventType === 'ESCROW_DISPUTED' && currentStatus === 'disputed') {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Updates an escrow's status and transaction hashes from on-chain event synchronization.
+   */
+  async updateStatusFromOnChain(
+    escrowId: string,
+    newStatus: escrow_status,
+    txHash?: string,
+    eventType?: string,
+  ): Promise<EscrowOnChain> {
+    const updateData: Record<string, unknown> = {
+      escrowStatus: newStatus,
+    };
+    if (eventType === 'ESCROW_FUNDED' && txHash) {
+      updateData.txHashLock = txHash;
+    }
+    if (
+      (eventType === 'ESCROW_RELEASED' || eventType === 'ESCROW_REFUNDED') &&
+      txHash
+    ) {
+      updateData.txHashRelease = txHash;
+    }
+    return this.repo.update(
+      escrowId,
+      updateData,
+    ) as unknown as Promise<EscrowOnChain>;
   }
 }
