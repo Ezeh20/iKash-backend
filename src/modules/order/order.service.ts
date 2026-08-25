@@ -4,6 +4,7 @@ import { PaginationDto } from '../../common/pagination.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderRepository } from './order.repository';
+import type { OrderWithRelations } from './order.repository';
 import { EscrowService } from '../escrow/escrow.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import {
@@ -11,17 +12,20 @@ import {
   order_status,
   escrow_status,
   EscrowOnChain,
-  AppUser,
 } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ORDER_STATUS } from './order.constants';
+import {
+  ORDER_PARTY_CONTACT_SELECT,
+  OrderPartyContact,
+} from '../../common/prisma-selects';
 
 type ExpiredOrderWithRelations = Order & {
   escrow: EscrowOnChain | null;
-  buyer: AppUser;
-  seller: AppUser;
+  buyer: OrderPartyContact;
+  seller: OrderPartyContact;
 };
 
 export type OrderFilter = {
@@ -146,7 +150,7 @@ export class OrderService {
     };
   }
 
-  list(p: PaginationDto, q: OrderFilter): Promise<Order[]> {
+  list(p: PaginationDto, q: OrderFilter): Promise<OrderWithRelations[]> {
     const where: Record<string, unknown> = {};
     if (q.offerId) where.offerId = q.offerId;
     if (q.buyerId) where.buyerId = q.buyerId;
@@ -159,7 +163,7 @@ export class OrderService {
     return this.repo.search(where, p.skip, p.take);
   }
 
-  async get(id: string): Promise<Order> {
+  async get(id: string): Promise<OrderWithRelations> {
     const item = await this.repo.findById(id);
     if (!item) {
       throw new AppException(
@@ -230,13 +234,9 @@ export class OrderService {
    *    silently attempted here.
    */
   async cancel(id: string, userId: string): Promise<Order> {
-    // OrderRepository.findById includes the `escrow` relation at runtime
-    // (see order.repository.ts), but its declared return type is the plain
-    // `Order` model, which has no static `escrow` field. This assertion
-    // reflects what the query actually returns.
-    const order = (await this.repo.findById(id)) as
-      | (Order & { escrow: EscrowOnChain | null })
-      | null;
+    // OrderRepository.findById eager-loads the `escrow` relation, which the
+    // escrow-status guard below reads (see order.repository.ts).
+    const order = await this.repo.findById(id);
 
     if (!order) {
       throw new AppException(
@@ -324,8 +324,9 @@ export class OrderService {
       },
       include: {
         escrow: true,
-        buyer: true,
-        seller: true,
+        // The job only needs an alias/publicKey to address the notification.
+        buyer: { select: ORDER_PARTY_CONTACT_SELECT },
+        seller: { select: ORDER_PARTY_CONTACT_SELECT },
       },
     });
 
