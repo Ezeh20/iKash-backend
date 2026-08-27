@@ -13,6 +13,8 @@ import {
 } from '../file-storage/file-storage.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import { AppUser, Waitlist } from '@prisma/client';
+import { PaymentMethodValidatorService } from '../payment-methods/payment-method-validator.service';
+import { USER_PUBLIC_SELECT, PublicUser } from '../../common/prisma-selects';
 
 export interface AliasAvailability {
   available: boolean;
@@ -35,6 +37,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
     private readonly fileStorageService: FileStorageService,
+    private readonly paymentMethodValidator: PaymentMethodValidatorService,
   ) {}
 
   async getOrCreateAccount(publicKey: string): Promise<AppUser> {
@@ -100,6 +103,16 @@ export class UsersService {
         );
       }
 
+      this.paymentMethodValidator.validate(
+        {
+          type: provider.type,
+          countryCode: provider.country_code,
+          code: (provider.metadata as { code?: string } | null | undefined)
+            ?.code,
+        },
+        accountIdentifier,
+      );
+
       await this.prisma.paymentMethod.create({
         data: {
           userId,
@@ -133,12 +146,13 @@ export class UsersService {
     ) as Promise<AppUser>;
   }
 
-  list(p: PaginationDto): Promise<AppUser[]> {
+  list(p: PaginationDto): Promise<PublicUser[]> {
     return this.repo.findMany({
       skip: p.skip,
       take: p.take,
       orderBy: { createdAt: 'desc' },
-    }) as Promise<AppUser[]>;
+      select: USER_PUBLIC_SELECT,
+    }) as Promise<PublicUser[]>;
   }
 
   async findByPublicKey(publicKey: string): Promise<AppUser | null> {

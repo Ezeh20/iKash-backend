@@ -3,11 +3,19 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
 import { AppUser } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppException, ErrorCode } from '../../common/errors';
 import { CreateAuthChallengeDto } from './dto/create-auth-challenge.dto';
 import { LoginDto } from './dto/login.dto';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
+
+export interface RequestContext {
+  ipAddress?: string;
+  userAgent?: string;
+  correlationId?: string;
+}
 
 export interface AuthChallengeResponse {
   challenge: string;
@@ -17,6 +25,8 @@ export interface AuthChallengeResponse {
 const DEFAULT_CHALLENGE_EXPIRATION_SECONDS = 300;
 
 const ED25519_SIGNATURE_LENGTH = 64;
+
+const SEP_53_PREFIX = Buffer.from('Stellar Signed Message:\n', 'utf8');
 
 const BASE64_REGEX =
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
@@ -29,6 +39,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   /**
@@ -63,9 +74,11 @@ export class AuthService {
   /**
    * Step 2 of wallet authentication: verifies the signed challenge and issues
    * a temporary JWT only if the signature proves ownership of the wallet.
+   * Records USER_LOGIN_SUCCESS / USER_LOGIN_FAILURE audit events.
    */
   async login(
     dto: LoginDto,
+    ctx: RequestContext = {},
   ): Promise<{ access_token: string; user: AppUser }> {
     const { publicKey, challenge, signature } = dto;
     this.assertValidPublicKey(publicKey);
@@ -80,6 +93,11 @@ export class AuthService {
       stored.expiresAt.getTime() <= Date.now() ||
       stored.challenge !== challenge
     ) {
+      await this.recordLoginFailure(
+        publicKey,
+        ctx,
+        'invalid_or_expired_challenge',
+      );
       throw new AppException(
         ErrorCode.INVALID_CHALLENGE,
         'Challenge is invalid or has expired',
@@ -91,14 +109,17 @@ export class AuthService {
     let isValidSignature = false;
     try {
       const keypair = Keypair.fromPublicKey(publicKey);
-      isValidSignature = keypair.verify(
-        Buffer.from(challenge, 'utf8'),
-        signatureBytes,
-      );
+      const challengeBytes = Buffer.from(challenge, 'utf8');
+      const sep53Hash = createHash('sha256')
+        .update(Buffer.concat([SEP_53_PREFIX, challengeBytes]))
+        .digest();
+
+      // Freighter and Stellar CLI sign the SEP-53 hash. Keep raw challenge
+      // verification for compatibility with clients that sign bytes directly.
+      isValidSignature =
+        keypair.verify(sep53Hash, signatureBytes) ||
+        keypair.verify(challengeBytes, signatureBytes);
     } catch (error) {
-      // Log the reason (never the signature) so an SDK/operational failure
-      // is distinguishable from an ordinary bad signature; the client still
-      // only ever sees the generic 401.
       this.logger.warn(
         `Signature verification threw: ${
           error instanceof Error ? error.message : String(error)
@@ -108,6 +129,7 @@ export class AuthService {
     }
 
     if (!isValidSignature) {
+      await this.recordLoginFailure(publicKey, ctx, 'invalid_signature');
       throw new AppException(
         ErrorCode.INVALID_SIGNATURE,
         'Signature verification failed',
@@ -125,6 +147,7 @@ export class AuthService {
     });
 
     if (consumed.count === 0) {
+      await this.recordLoginFailure(publicKey, ctx, 'challenge_race_condition');
       throw new AppException(
         ErrorCode.INVALID_CHALLENGE,
         'Challenge is invalid or has expired',
@@ -141,6 +164,17 @@ export class AuthService {
       sub: user.userId,
       publicKey,
     };
+
+    await this.auditLogService.create({
+      action: AuditAction.USER_LOGIN_SUCCESS,
+      resourceType: 'User',
+      resourceId: publicKey,
+      result: AuditResult.SUCCESS,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      correlationId: ctx.correlationId,
+    });
+
     return {
       access_token: this.jwtService.sign(payload),
       user,
@@ -160,6 +194,23 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload),
     };
+  }
+
+  private async recordLoginFailure(
+    publicKey: string,
+    ctx: RequestContext,
+    reason: string,
+  ): Promise<void> {
+    await this.auditLogService.create({
+      action: AuditAction.USER_LOGIN_FAILURE,
+      resourceType: 'User',
+      resourceId: publicKey,
+      result: AuditResult.FAILURE,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      correlationId: ctx.correlationId,
+      metadata: { reason },
+    });
   }
 
   private assertValidPublicKey(publicKey: string): void {

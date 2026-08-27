@@ -39,8 +39,11 @@ export class TrustlessWorkService {
   private readonly logger = new Logger(TrustlessWorkService.name);
 
   constructor(private readonly config: ConfigService) {
-    const baseURL = this.config.getOrThrow<string>('TRUSTLESS_WORK_API_URL');
-    const apiKey = this.config.getOrThrow<string>('TRUSTLESS_WORK_API_KEY');
+    const baseURL =
+      this.config.get<string>('TRUSTLESS_WORK_API_URL') ??
+      'https://api.trustlesswork.com';
+    const apiKey =
+      this.config.get<string>('TRUSTLESS_WORK_API_KEY') ?? 'mock-key';
 
     this.http = axios.create({
       baseURL,

@@ -35,12 +35,14 @@ import {
   MultiReleaseRoles,
   Trustline,
 } from './trustless-work.types';
-import { EscrowOnChain } from '@prisma/client';
+import { EscrowOnChain, escrow_status } from '@prisma/client';
 import { AppException, ErrorCode } from '../../common/errors';
 import {
   FileStorageService,
   UploadFileInput,
 } from '../file-storage/file-storage.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditAction, AuditResult } from '../audit-log/enums/audit-action.enum';
 
 @Injectable()
 export class EscrowService {
@@ -51,7 +53,16 @@ export class EscrowService {
     private readonly tw: TrustlessWorkService,
     private readonly config: ConfigService,
     private readonly fileStorage: FileStorageService,
+    private readonly auditLogService: AuditLogService,
   ) {}
+
+  /**
+   * Helper method to query on-chain balance for a given escrow contract address.
+   * Encapsulates TrustlessWorkService calls to maintain separation of concerns.
+   */
+  async getOnChainEscrowBalance(contractId: string) {
+    return this.tw.getEscrowBalance(contractId);
+  }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -131,15 +142,21 @@ export class EscrowService {
     return escrow;
   }
 
-  private validateStatusTransition(
+  public validateStatusTransition(
     currentStatus: string,
-    action: EscrowAction,
+    action: EscrowAction | string,
   ) {
     const validTransitions: Record<string, string[]> = {
       [EscrowAction.INITIALIZE]: ['pending'],
       [EscrowAction.FUND]: ['initialized'],
       [EscrowAction.FIAT_SENT]: ['funded'],
       [EscrowAction.RELEASE]: ['funded', 'fiat_sent'],
+      ESCROW_CREATED: ['pending'],
+      ESCROW_FUNDED: ['initialized'],
+      ESCROW_RELEASED: ['funded', 'fiat_sent'],
+      ESCROW_REFUNDED: ['funded', 'fiat_sent', 'disputed'],
+      ESCROW_CANCELLED: ['pending', 'initialized'],
+      ESCROW_DISPUTED: ['funded', 'fiat_sent'],
     };
 
     const allowed = validTransitions[action];
@@ -239,6 +256,7 @@ export class EscrowService {
       await this.deployEscrowToChain(dto.orderId, dto);
 
     let escrow = existing;
+    const isNewEscrow = !escrow;
     if (!escrow) {
       escrow = (await this.repo.create({
         orderId: dto.orderId,
@@ -252,6 +270,16 @@ export class EscrowService {
       contractId,
       escrowStatus: 'initialized',
     });
+
+    if (isNewEscrow) {
+      await this.auditLogService.create({
+        action: AuditAction.ESCROW_CREATED,
+        resourceType: 'Escrow',
+        resourceId: escrow.escrowId,
+        result: AuditResult.SUCCESS,
+        metadata: { orderId: dto.orderId, contractId },
+      });
+    }
 
     return {
       escrowId: escrow.escrowId,
@@ -293,8 +321,8 @@ export class EscrowService {
     };
 
     const result = await this.tw.initializeEscrow(payload);
-
     let escrow = await this.repo.findByOrder(dto.orderId);
+    const isNewEscrow = !escrow;
     if (!escrow) {
       escrow = (await this.repo.create({
         orderId: dto.orderId,
@@ -311,6 +339,15 @@ export class EscrowService {
       });
     }
 
+    if (isNewEscrow) {
+      await this.auditLogService.create({
+        action: AuditAction.ESCROW_CREATED,
+        resourceType: 'Escrow',
+        resourceId: escrow.escrowId,
+        result: AuditResult.SUCCESS,
+        metadata: { orderId: dto.orderId },
+      });
+    }
     return {
       escrowId: escrow?.escrowId,
       unsignedTransaction: result.unsignedTransaction,
@@ -484,7 +521,6 @@ export class EscrowService {
     }
 
     const updateData: Record<string, unknown> = {};
-
     switch (dto.action) {
       case EscrowAction.INITIALIZE:
         updateData.escrowStatus = 'initialized';
@@ -502,8 +538,28 @@ export class EscrowService {
         updateData.txHashRelease = dto.signedXdr.substring(0, 64);
         break;
     }
-
     await this.repo.update(dto.escrowId, updateData);
+
+    if (dto.action === EscrowAction.FUND) {
+      await this.auditLogService.create({
+        action: AuditAction.ESCROW_FUNDED,
+        resourceType: 'Escrow',
+        resourceId: dto.escrowId,
+        result: AuditResult.SUCCESS,
+        metadata: { contractId: result.contractId ?? escrow.contractId },
+      });
+    } else if (dto.action === EscrowAction.RELEASE) {
+      await this.auditLogService.create({
+        action: AuditAction.ESCROW_RELEASED,
+        resourceType: 'Escrow',
+        resourceId: dto.escrowId,
+        result: AuditResult.SUCCESS,
+        metadata: {
+          contractId: result.contractId ?? escrow.contractId,
+          txHashRelease: updateData.txHashRelease,
+        },
+      });
+    }
 
     return {
       escrowId: dto.escrowId,
@@ -588,5 +644,73 @@ export class EscrowService {
 
   remove(id: string) {
     return this.repo.delete(id);
+  }
+
+  /**
+   * Checks if an escrow status transition for a given event is terminal or already processed.
+   */
+  isTerminalOrAlreadyProcessed(
+    currentStatus: escrow_status,
+    eventType: string,
+  ): boolean {
+    if (eventType === 'ESCROW_CREATED' && currentStatus !== 'pending') {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_FUNDED' &&
+      ['funded', 'fiat_sent', 'released', 'resolved'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_RELEASED' &&
+      ['released', 'resolved'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_REFUNDED' &&
+      ['resolved'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (
+      eventType === 'ESCROW_CANCELLED' &&
+      ['resolved', 'released'].includes(currentStatus)
+    ) {
+      return true;
+    }
+    if (eventType === 'ESCROW_DISPUTED' && currentStatus === 'disputed') {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Updates an escrow's status and transaction hashes from on-chain event synchronization.
+   */
+  async updateStatusFromOnChain(
+    escrowId: string,
+    newStatus: escrow_status,
+    txHash?: string,
+    eventType?: string,
+  ): Promise<EscrowOnChain> {
+    const updateData: Record<string, unknown> = {
+      escrowStatus: newStatus,
+    };
+    if (eventType === 'ESCROW_FUNDED' && txHash) {
+      updateData.txHashLock = txHash;
+    }
+    if (
+      (eventType === 'ESCROW_RELEASED' || eventType === 'ESCROW_REFUNDED') &&
+      txHash
+    ) {
+      updateData.txHashRelease = txHash;
+    }
+    return this.repo.update(
+      escrowId,
+      updateData,
+    ) as unknown as Promise<EscrowOnChain>;
   }
 }

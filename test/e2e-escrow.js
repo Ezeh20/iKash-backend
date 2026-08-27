@@ -1,3 +1,14 @@
+/**
+ * DEPRECATED � do not use.
+ *
+ * This manual script has been superseded by test/escrow.e2e-spec.ts,
+ * an automated Jest e2e suite covering the same open -> fund ->
+ * fiat_sent -> release flow with real assertions, run in CI via
+ * pnpm test:e2e.
+ *
+ * This file is kept only as a historical/manual reference. It is not
+ * picked up by Jest and does not run in CI. See #75 for context.
+ */
 const fs = require('fs');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
@@ -30,7 +41,7 @@ async function apiCall(method, endpoint, body = null) {
   }
 }
 
-/** 
+/**
  * Low-level XDR signer to avoid "Bad union switch" bug in stellar-sdk@13
  */
 function signXdrRaw(unsignedXdrBase64, secretKey) {
@@ -62,7 +73,10 @@ function signXdrRaw(unsignedXdrBase64, secretKey) {
   let existingSigs = Buffer.alloc(0);
   if (sigCount > 0) {
     const existingSigsLength = sigCount * 72;
-    existingSigs = raw.subarray(raw.length - 4 - existingSigsLength, raw.length - 4);
+    existingSigs = raw.subarray(
+      raw.length - 4 - existingSigsLength,
+      raw.length - 4,
+    );
     const txEnd = raw.length - 4 - existingSigsLength;
     const signedEnvelope = Buffer.concat([
       raw.subarray(0, 4),
@@ -80,7 +94,7 @@ function signXdrRaw(unsignedXdrBase64, secretKey) {
     newSigCount,
     decoratedSig,
   ]);
-  
+
   return signedEnvelope.toString('base64');
 }
 
@@ -88,17 +102,22 @@ function signXdrRaw(unsignedXdrBase64, secretKey) {
 function loadSecrets() {
   const yamlPath = path.resolve(__dirname, '../accounts.yaml');
   const content = fs.readFileSync(yamlPath, 'utf-8');
-  
+
   // Buyer is the issuer-account (GDVCLTCROXEKHTHST5JY5HEILNN4GDIDBXAJBZNOSGJ36PXMLZI7625W)
-  const buyerMatch = content.match(/issuer-account:[\s\S]*?secret-key:\s*(S[A-Z0-9]+)/);
+  const buyerMatch = content.match(
+    /issuer-account:[\s\S]*?secret-key:\s*(S[A-Z0-9]+)/,
+  );
   // Seller is the sender-account (GDZMFMC7FHN7PLXNA7Q5YJYKYLXC7ZOMS7BLP4LWLESPCX4IKP3WKUGH)
-  const sellerMatch = content.match(/sender-account:[\s\S]*?secret-key:\s*(S[A-Z0-9]+)/);
-  
-  if (!buyerMatch || !sellerMatch) throw new Error("Could not parse keys from accounts.yaml");
-  
+  const sellerMatch = content.match(
+    /sender-account:[\s\S]*?secret-key:\s*(S[A-Z0-9]+)/,
+  );
+
+  if (!buyerMatch || !sellerMatch)
+    throw new Error('Could not parse keys from accounts.yaml');
+
   return {
     BUYER_SECRET: buyerMatch[1],
-    SELLER_SECRET: sellerMatch[1]
+    SELLER_SECRET: sellerMatch[1],
   };
 }
 
@@ -107,19 +126,25 @@ function loadSecrets() {
 async function main() {
   const prisma = new PrismaClient();
   const { BUYER_SECRET, SELLER_SECRET } = loadSecrets();
-  
+
   const buyerKeys = StellarSdk.Keypair.fromSecret(BUYER_SECRET);
   const sellerKeys = StellarSdk.Keypair.fromSecret(SELLER_SECRET);
 
-  console.log(`\n🔑 Keys loaded!\nBuyer: ${buyerKeys.publicKey()}\nSeller: ${sellerKeys.publicKey()}`);
+  console.log(
+    `\n🔑 Keys loaded!\nBuyer: ${buyerKeys.publicKey()}\nSeller: ${sellerKeys.publicKey()}`,
+  );
 
   try {
     // -------------------------------------------------------------
     // 0. SEED THE ORDER
     // -------------------------------------------------------------
     console.log(`\n[0] Creating new Order in Database...`);
-    let seller = await prisma.appUser.findFirst({ where: { alias: 'dummySeller' } });
-    let buyer = await prisma.appUser.findFirst({ where: { alias: 'dummyBuyer' } });
+    let seller = await prisma.appUser.findFirst({
+      where: { alias: 'dummySeller' },
+    });
+    let buyer = await prisma.appUser.findFirst({
+      where: { alias: 'dummyBuyer' },
+    });
     let offer = await prisma.offer.findFirst();
 
     const order = await prisma.order.create({
@@ -129,7 +154,7 @@ async function main() {
         sellerId: seller.userId,
         assetAmount: 2.5,
         fiatAmount: 2.5,
-      }
+      },
     });
     console.log(`=> Created Order: ${order.orderId}`);
 
@@ -141,22 +166,27 @@ async function main() {
       sellerAddress: sellerKeys.publicKey(),
       buyerAddress: buyerKeys.publicKey(),
       amount: 2.5,
-      title: "E2E Test Order"
+      title: 'E2E Test Order',
     });
     const escrowId = openRes.escrowId;
-    console.log(`=> Escrow Initialized (Backend deployed SC!)\n=> unsignedFundXdr received.`);
+    console.log(
+      `=> Escrow Initialized (Backend deployed SC!)\n=> unsignedFundXdr received.`,
+    );
 
     // -------------------------------------------------------------
     // 2. FUND ESCROW
     // -------------------------------------------------------------
     console.log(`\n[2] Seller signs FUND transaction...`);
-    const signedFundXdr = signXdrRaw(openRes.unsignedFundTransaction, SELLER_SECRET);
-    
+    const signedFundXdr = signXdrRaw(
+      openRes.unsignedFundTransaction,
+      SELLER_SECRET,
+    );
+
     console.log(`=> Syncing FUND transaction...`);
     const syncFundRes = await apiCall('POST', '/escrows/sync', {
       escrowId,
       action: 'fund',
-      signedXdr: signedFundXdr
+      signedXdr: signedFundXdr,
     });
     console.log(`=> FUND Sync Success. Status: ${syncFundRes.newEscrowStatus}`);
 
@@ -164,28 +194,39 @@ async function main() {
     // 3. FIAT SENT (Evidence upload by Buyer)
     // -------------------------------------------------------------
     console.log(`\n[3] Buyer marks Fiat Sent & gets XDR...`);
-    const fiatSentRes = await apiCall('POST', `/escrows/${escrowId}/fiat-sent`, {
-      buyerAddress: buyerKeys.publicKey(),
-      evidence: "Test Evidence E2E"
-    });
+    const fiatSentRes = await apiCall(
+      'POST',
+      `/escrows/${escrowId}/fiat-sent`,
+      {
+        buyerAddress: buyerKeys.publicKey(),
+        evidence: 'Test Evidence E2E',
+      },
+    );
 
     console.log(`=> Buyer signs FIAT_SENT transaction...`);
-    const signedFiatSentXdr = signXdrRaw(fiatSentRes.unsignedTransaction, BUYER_SECRET);
+    const signedFiatSentXdr = signXdrRaw(
+      fiatSentRes.unsignedTransaction,
+      BUYER_SECRET,
+    );
 
     console.log(`=> Syncing FIAT_SENT transaction...`);
     const syncFiatRes = await apiCall('POST', '/escrows/sync', {
       escrowId,
       action: 'fiat_sent',
-      signedXdr: signedFiatSentXdr
+      signedXdr: signedFiatSentXdr,
     });
     console.log(`=> FIAT_SENT Sync Success.`);
 
-    console.log(`\n[WAIT] Allowing 10 seconds for TW Indexer to detect state change...`);
-    await new Promise(r => setTimeout(r, 10000));
+    console.log(
+      `\n[WAIT] Allowing 10 seconds for TW Indexer to detect state change...`,
+    );
+    await new Promise((r) => setTimeout(r, 10000));
 
     const statusAfterFiat = await apiCall('GET', `/escrows/${escrowId}/status`);
     console.log(`=> Status after Fiat Sent:`);
-    console.dir(statusAfterFiat.onChainData?.[0]?.milestones?.[0], {depth: null});
+    console.dir(statusAfterFiat.onChainData?.[0]?.milestones?.[0], {
+      depth: null,
+    });
 
     // -------------------------------------------------------------
     // 4. RELEASE (Seller verifies and releases)
@@ -193,17 +234,20 @@ async function main() {
     console.log(`\n[4] Seller gets Release XDR...`);
     const releaseRes = await apiCall('POST', '/escrows/release', {
       escrowId,
-      releaseSigner: sellerKeys.publicKey()
+      releaseSigner: sellerKeys.publicKey(),
     });
 
     console.log(`=> Seller signs RELEASE transaction...`);
-    const signedReleaseXdr = signXdrRaw(releaseRes.unsignedTransaction, SELLER_SECRET);
+    const signedReleaseXdr = signXdrRaw(
+      releaseRes.unsignedTransaction,
+      SELLER_SECRET,
+    );
 
     console.log(`=> Syncing RELEASE transaction...`);
     const syncReleaseRes = await apiCall('POST', '/escrows/sync', {
       escrowId,
       action: 'release',
-      signedXdr: signedReleaseXdr
+      signedXdr: signedReleaseXdr,
     });
     console.log(`=> RELEASE Sync Success. State finalized!`);
 
@@ -212,10 +256,11 @@ async function main() {
     // -------------------------------------------------------------
     const finalStatus = await apiCall('GET', `/escrows/${escrowId}/status`);
     console.log(`\n========================================`);
-    console.log(`🔥 E2E TEST PASSED! Final Status: ${finalStatus.escrowStatus}`);
+    console.log(
+      `🔥 E2E TEST PASSED! Final Status: ${finalStatus.escrowStatus}`,
+    );
     console.log(`Contract balance: ${finalStatus.onChainBalance[0].balance}`);
     console.log(`========================================\n`);
-
   } catch (e) {
     console.error(`\n❌ E2E TEST FAILED: ${e.message}`);
   } finally {
@@ -224,3 +269,4 @@ async function main() {
 }
 
 main();
+
