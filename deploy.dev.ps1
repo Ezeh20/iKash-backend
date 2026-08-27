@@ -69,6 +69,7 @@ if ($imageExists -and $forceRebuild -eq $false) {
 $envVars = @(
     "DIDIT_API_URL=https://verification.didit.me/v3",
     "STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org",
+    "STELLAR_RPC_URL=https://soroban-testnet.stellar.org",
     "STELLAR_NETWORK=testnet",
     "TRUSTLESS_WORK_API_URL=https://dev.api.trustlesswork.com",
     "TRUSTLESS_WORK_USDC_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
@@ -86,7 +87,8 @@ $secretVars = @(
     "TRUSTLESS_WORK_API_KEY=TRUSTLESS_WORK_API_KEY:latest",
     "IKASH_TREASURY_ADDRESS=IKASH_TREASURY_ADDRESS:latest",
     "IKASH_SUPPORT_ADDRESS=IKASH_SUPPORT_ADDRESS:latest",
-    "IKASH_DEPLOYER_SECRET=IKASH_DEPLOYER_SECRET:latest"
+    "IKASH_DEPLOYER_SECRET=IKASH_DEPLOYER_SECRET:latest",
+    "JWT_SECRET=JWT_SECRET:latest"
 ) -join ","
 
 # ==========================================
